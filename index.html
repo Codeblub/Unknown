@@ -208,10 +208,10 @@
 
     function updateArrowLook(dt) {
       const lookSpeed = 1.5;
-      if (keys.has('arrowright'))  yaw.rotation.y += lookSpeed * dt;
-      if (keys.has('arrowleft')) yaw.rotation.y -= lookSpeed * dt;
-      if (keys.has('arrowup'))    pitch.rotation.x -= lookSpeed * dt;
-      if (keys.has('arrowdown'))  pitch.rotation.x += lookSpeed * dt;
+      if (keys.has('arrowleft'))  yaw.rotation.y += lookSpeed * dt;
+      if (keys.has('arrowright')) yaw.rotation.y -= lookSpeed * dt;
+      if (keys.has('arrowdown'))    pitch.rotation.x -= lookSpeed * dt;
+      if (keys.has('arrowup'))  pitch.rotation.x += lookSpeed * dt;
       pitch.rotation.x = Math.max(-Math.PI/2 + 0.001, Math.min(Math.PI/2 - 0.001, pitch.rotation.x));
     }
 
