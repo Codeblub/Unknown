@@ -191,7 +191,7 @@
 
     function move(dt) {
       const forward = (keys.has('w') || keys.has('i')) ? 1 : (keys.has('s') || keys.has('k')) ? -1 : 0;
-      const strafe  = (keys.has('d') || keys.has('j')) ? 1 : (keys.has('a') || keys.has('l')) ? -1 : 0;
+      const strafe  = (keys.has('d') || keys.has('l')) ? 1 : (keys.has('a') || keys.has('j')) ? -1 : 0;
 
       const dir = new THREE.Vector3();
       const yawDir = new THREE.Vector3(-Math.sin(yaw.rotation.y), 0, -Math.cos(yaw.rotation.y));
