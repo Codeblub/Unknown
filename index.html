@@ -1,105 +1,134 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Unkown Game</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Unkown</title>
   <style>
-    body { margin: 0; overflow: hidden; background: #000; }
-    canvas { display: block; }
+    html, body { height: 100%; margin: 0; background:#0b0e13; color:#e5e7eb; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+    #ui { position: fixed; top: 0; left: 0; right:0; display:flex; align-items:center; justify-content:space-between; padding: 10px 12px; pointer-events: none; }
+    #hint { pointer-events: none; opacity: 0.9; }
+    #btnStart { pointer-events: auto; border:1px solid #374151; background:#111827; color:#e5e7eb; padding:8px 12px; border-radius:10px; cursor:pointer; }
+    #btnStart:hover { background:#0f172a; }
+    .crosshair { position: fixed; top: 50%; left: 50%; width: 16px; height: 16px; transform: translate(-50%, -50%); pointer-events: none; }
+    .crosshair::before, .crosshair::after { content: ""; position: absolute; background: #e5e7eb; }
+    .crosshair::before { left: 7px; top: 0; width: 2px; height: 16px; }
+    .crosshair::after { top: 7px; left: 0; width: 16px; height: 2px; }
+    #debug { position: fixed; left: 10px; bottom: 10px; background: rgba(0,0,0,0.35); padding: 8px 10px; border-radius: 10px; font-size: 12px; white-space: pre; pointer-events: none; }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/PointerLockControls.js"></script>
 </head>
 <body>
-<script>
-// Scene setup
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb); // sky blue
+  <div id="ui">
+    <div id="hint">WASD / IJKL to move · Mouse or Arrow Keys to look · Space to jump · Shift to sprint</div>
+    <button id="btnStart">Click to enter</button>
+  </div>
+  <div class="crosshair" aria-hidden="true"></div>
+  <div id="debug"></div>
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight);
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.164.1/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.164.1/examples/jsm/"
+      }
+    }
+  </script>
 
-// Attach canvas
-const canvas = renderer.domElement;
-document.body.appendChild(canvas);
+  <script type="module">
+    import * as THREE from 'three';
 
-// Lighting
-const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
-hemiLight.position.set(0, 200, 0);
-scene.add(hemiLight);
+    // Basic scene
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-dirLight.position.set(100, 200, 100);
-scene.add(dirLight);
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87CEEB);
 
-// Ground (green with pixel-like grass variation)
-const groundSize = 512;
-const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize, 64, 64);
-const groundCanvas = document.createElement('canvas');
-groundCanvas.width = 128;
-groundCanvas.height = 128;
-const ctx = groundCanvas.getContext('2d');
-ctx.fillStyle = '#1d8238';
-ctx.fillRect(0, 0, 128, 128);
-for (let i=0; i<500; i++) {
-  ctx.fillStyle = Math.random() > 0.5 ? '#1c7a34' : '#1f883a';
-  ctx.fillRect(Math.random()*128, Math.random()*128, 2, 2);
-}
-const groundTexture = new THREE.CanvasTexture(groundCanvas);
-const groundMaterial = new THREE.MeshLambertMaterial({ map: groundTexture });
-const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-ground.rotation.x = -Math.PI / 2;
-scene.add(ground);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
 
-// Controls
-const controls = new THREE.PointerLockControls(camera, canvas);
-document.body.addEventListener('click', () => controls.lock());
-controls.getObject().position.set(0, 2, 5); // start above ground
-scene.add(controls.getObject());
+    const yaw = new THREE.Object3D();
+    const pitch = new THREE.Object3D();
+    yaw.position.set(0, 1.8, 0);
+    yaw.add(pitch);
+    pitch.add(camera);
+    scene.add(yaw);
 
-// Movement vars
-const keys = {};
-let moveSpeed = 5;
-let sprintMultiplier = 2;
-let velocity = new THREE.Vector3();
-let direction = new THREE.Vector3();
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(50, 100, 50);
+    scene.add(light);
 
-// Key events
-document.addEventListener('keydown', (e) => { keys[e.code] = true; });
-document.addEventListener('keyup', (e) => { keys[e.code] = false; });
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(200, 200),
+      new THREE.MeshLambertMaterial({ color: 0x1d8238 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    scene.add(ground);
 
-// Animate loop
-const clock = new THREE.Clock();
-function animate() {
-  requestAnimationFrame(animate);
-  const delta = clock.getDelta();
+    // Controls
+    const keys = new Set();
+    window.addEventListener('keydown', (e) => keys.add(e.key.toLowerCase()));
+    window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
 
-  velocity.set(0,0,0);
-  direction.set(0,0,0);
+    const velocity = new THREE.Vector3();
+    const accel = 45;
+    const damping = 10;
+    const baseMaxSpeed = 8;
+    const sprintMultiplier = 2.0;
 
-  let speed = moveSpeed;
-  if (keys['ShiftLeft'] || keys['ShiftRight']) speed *= sprintMultiplier;
+    const clock = new THREE.Clock();
 
-  // WASD and IJKL
-  if (keys['KeyW'] || keys['KeyI']) direction.z -= 1;
-  if (keys['KeyS'] || keys['KeyK']) direction.z += 1;
-  if (keys['KeyA'] || keys['KeyJ']) direction.x -= 1; // J = left
-  if (keys['KeyD'] || keys['KeyL']) direction.x += 1; // L = right
+    function move(dt) {
+      const forward = (keys.has('w') || keys.has('i')) ? 1 : (keys.has('s') || keys.has('k')) ? -1 : 0;
+      const strafe  = (keys.has('d') || keys.has('l')) ? 1 : (keys.has('a') || keys.has('j')) ? -1 : 0;
 
-  direction.normalize();
+      const dir = new THREE.Vector3();
+      const yawDir = new THREE.Vector3(Math.sin(yaw.rotation.y), 0, Math.cos(yaw.rotation.y));
+      const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), yawDir).normalize();
+      dir.addScaledVector(yawDir, forward).addScaledVector(right, strafe).normalize();
 
-  if (controls.isLocked) {
-    velocity.x = direction.x * speed * delta;
-    velocity.z = direction.z * speed * delta;
+      if (dir.lengthSq() > 0) {
+        velocity.addScaledVector(dir, accel * dt);
+      } else {
+        const decel = Math.max(0, 1 - damping * dt);
+        velocity.multiplyScalar(decel);
+      }
 
-    controls.moveRight(velocity.x);
-    controls.moveForward(velocity.z);
-  }
+      const sprinting = keys.has('shift') || keys.has('shiftleft') || keys.has('shiftright');
+      const maxSpeed = sprinting ? baseMaxSpeed * sprintMultiplier : baseMaxSpeed;
 
-  renderer.render(scene, camera);
-}
-animate();
-</script>
+      const v2 = new THREE.Vector2(velocity.x, velocity.z);
+      if (v2.length() > maxSpeed) {
+        v2.setLength(maxSpeed);
+        velocity.x = v2.x; velocity.z = v2.y;
+      }
+
+      yaw.position.addScaledVector(velocity, dt);
+    }
+
+    const MOUSE_SENS = 0.002 * (122 / 100);
+    let pointerLocked = false;
+
+    document.getElementById('btnStart').addEventListener('click', () => {
+      renderer.domElement.requestPointerLock();
+    });
+    document.addEventListener('pointerlockchange', () => {
+      pointerLocked = document.pointerLockElement === renderer.domElement;
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!pointerLocked) return;
+      yaw.rotation.y += e.movementX * MOUSE_SENS;
+      pitch.rotation.x -= e.movementY * MOUSE_SENS;
+      pitch.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch.rotation.x));
+    });
+
+    function tick() {
+      const dt = Math.min(0.05, clock.getDelta());
+      move(dt);
+      renderer.render(scene, camera);
+      requestAnimationFrame(tick);
+    }
+    tick();
+  </script>
 </body>
 </html>
