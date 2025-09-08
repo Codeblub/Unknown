@@ -66,148 +66,77 @@
     sun.shadow.mapSize.set(2048, 2048);
     scene.add(sun);
 
-    const mtlLoader = new MTLLoader();
     const objLoader = new OBJLoader();
+    const mtlLoader = new MTLLoader();
 
-    function tryPaths(paths, loaderFn) {
-      return paths.reduce((p, path) => p.catch(() => loaderFn(path)), Promise.reject());
-    }
-
-    // --- Ground ---
+    // --- Ground (flat green with noise) ---
     const groundSize = 512;
-    const tileSize = 16;
-    const tiles = groundSize / tileSize;
-
-    const groundTexture = new THREE.TextureLoader().load('Resources/models/blocks/ground/plains.png');
-    groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
-    groundTexture.magFilter = THREE.NearestFilter;
-    groundTexture.minFilter = THREE.NearestMipMapNearestFilter;
-    groundTexture.repeat.set(tiles, tiles);
-
     const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize, 1, 1);
-    const groundMat = new THREE.MeshLambertMaterial({ map: groundTexture });
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    for (let y = 0; y < 128; y++) {
+      for (let x = 0; x < 128; x++) {
+        const base = [29, 130, 56];
+        const variation = (Math.random() * 20) - 10;
+        const r = Math.max(0, Math.min(255, base[0] + variation));
+        const g = Math.max(0, Math.min(255, base[1] + variation));
+        const b = Math.max(0, Math.min(255, base[2] + variation));
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.NearestFilter;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(groundSize / 16, groundSize / 16);
+    const groundMat = new THREE.MeshLambertMaterial({ map: tex });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
 
-    tryPaths([
-      'Resources/models/blocks/ground/ground.onj',
-      'Resources/models/blocks/ground/ground.obj'
-    ], (path) => objLoader.loadAsync(path)).then(obj => {
-      obj.traverse(n => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; }});
-      obj.position.set(0, 0.02, 0);
-      scene.add(obj);
-    }).catch(() => {});
-
-    // --- Trees ---
+    // --- Trees (placeholder simple) ---
     const treeParent = new THREE.Group();
     scene.add(treeParent);
 
-    function loadTreePrototype() {
-      return tryPaths([
-        'Resources/models/tree/tree.ojb',
-        'Resources/models/tree/tree.obj'
-      ], (path) => objLoader.loadAsync(path)).catch(async () => {
-        try {
-          const mtl = await mtlLoader.loadAsync('Resources/models/tree/tree.mtl');
-          mtl.preload();
-          objLoader.setMaterials(mtl);
-          return await objLoader.loadAsync('Resources/models/tree/tree.obj');
-        } catch {
-          const barkTex = new THREE.TextureLoader().load('Resources/models/tree/tree.png');
-          barkTex.magFilter = THREE.NearestFilter;
-          const dummy = new THREE.Group();
-          const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 3, 8), new THREE.MeshLambertMaterial({ map: barkTex }));
-          trunk.position.y = 1.5;
-          trunk.castShadow = true; trunk.receiveShadow = true;
-          const leavesTex = new THREE.TextureLoader().load('Resources/models/tree/tree.png');
-          const leaves = new THREE.Mesh(new THREE.SphereGeometry(1.5, 12, 12), new THREE.MeshLambertMaterial({ map: leavesTex }));
-          leaves.position.y = 3.4;
-          leaves.castShadow = true; leaves.receiveShadow = true;
-          dummy.add(trunk, leaves);
-          return dummy;
-        }
-      });
+    function createTree() {
+      const dummy = new THREE.Group();
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 3, 8), new THREE.MeshLambertMaterial({ color: 0x8b5a2b }));
+      trunk.position.y = 1.5;
+      trunk.castShadow = true;
+      const leaves = new THREE.Mesh(new THREE.SphereGeometry(1.5, 12, 12), new THREE.MeshLambertMaterial({ color: 0x2e7d32 }));
+      leaves.position.y = 3.4;
+      leaves.castShadow = true;
+      dummy.add(trunk, leaves);
+      return dummy;
     }
 
-    const treePromise = loadTreePrototype();
-
     function scatterTrees(proto) {
+      const tileSize = 16;
       const step = tileSize * 2;
       const half = groundSize / 2;
       for (let x = -half + step/2; x < half; x += step) {
         for (let z = -half + step/2; z < half; z += step) {
           for (let i = 0; i < 2; i++) {
-            const t = proto.clone(true);
+            const t = proto.clone();
             const jx = (Math.random() - 0.5) * (step * 0.6);
             const jz = (Math.random() - 0.5) * (step * 0.6);
             t.position.set(x + jx, 0, z + jz);
-            t.traverse(n => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; }});
             treeParent.add(t);
           }
         }
       }
     }
 
-    treePromise.then(scatterTrees);
+    scatterTrees(createTree());
 
     // --- Player (Shade) ---
     const player = new THREE.Group();
     player.position.set(0, 0, 0);
     scene.add(player);
     player.add(yaw);
-
-    async function loadShade() {
-      try {
-        const shadeObj = await tryPaths([
-          'Resources/models/characters/Shade/shade.ojb',
-          'Resources/models/characters/Shade/shade.obj'
-        ], (path) => objLoader.loadAsync(path)).catch(async () => {
-          const mtl = await mtlLoader.loadAsync('Resources/models/characters/Shade/shade.mtl');
-          mtl.preload();
-          objLoader.setMaterials(mtl);
-          return await objLoader.loadAsync('Resources/models/characters/Shade/shade.obj');
-        });
-
-        const tex = new THREE.TextureLoader().load('Resources/models/characters/Shade/texture.png');
-        tex.magFilter = THREE.NearestFilter;
-        shadeObj.traverse(n => {
-          if (n.isMesh) {
-            n.material = new THREE.MeshLambertMaterial({ map: tex });
-            n.castShadow = true; n.receiveShadow = true;
-          }
-        });
-
-        shadeObj.scale.setScalar(1);
-        shadeObj.position.set(0, 0, 0);
-        player.add(shadeObj);
-
-        try {
-          const resp = await fetch('Resources/animation/character/Shade/walk.json');
-          if (resp.ok) {
-            const data = await resp.json();
-            const mixer = new THREE.AnimationMixer(shadeObj);
-            const clip = THREE.AnimationClip.parse(data);
-            const action = mixer.clipAction(clip);
-            action.play();
-            mixers.push(mixer);
-          }
-        } catch (e) {
-          console.warn('Walk animation could not be applied:', e);
-        }
-      } catch (e) {
-        console.warn('Shade model load failed, using capsule placeholder.', e);
-        const capsuleGeo = new THREE.CapsuleGeometry(0.4, 1.0, 4, 8);
-        const capsuleMat = new THREE.MeshLambertMaterial({ color: 0x5555ff });
-        const cap = new THREE.Mesh(capsuleGeo, capsuleMat);
-        cap.castShadow = true; cap.receiveShadow = true;
-        cap.position.y = 1.0;
-        player.add(cap);
-      }
-    }
-    const mixers = [];
-    loadShade();
 
     // --- Controls ---
     const keys = new Set();
@@ -226,10 +155,7 @@
     const minecraftSensitivity122 = MOUSE_BASE * (122 / 100);
 
     let pointerLocked = false;
-
-    function requestLock() {
-      renderer.domElement.requestPointerLock();
-    }
+    function requestLock() { renderer.domElement.requestPointerLock(); }
 
     document.addEventListener('pointerlockchange', () => {
       pointerLocked = document.pointerLockElement === renderer.domElement;
@@ -242,8 +168,8 @@
 
     document.addEventListener('mousemove', (e) => {
       if (!pointerLocked) return;
-      yaw.rotation.y += e.movementX * minecraftSensitivity122;
-      pitch.rotation.x += e.movementY * minecraftSensitivity122;
+      yaw.rotation.y -= e.movementX * minecraftSensitivity122;
+      pitch.rotation.x -= e.movementY * minecraftSensitivity122;
       pitch.rotation.x = Math.max(-Math.PI/2 + 0.001, Math.min(Math.PI/2 - 0.001, pitch.rotation.x));
     });
 
@@ -268,7 +194,7 @@
       const strafe  = (keys.has('d') || keys.has('l')) ? 1 : (keys.has('a') || keys.has('j')) ? -1 : 0;
 
       const dir = new THREE.Vector3();
-      const yawDir = new THREE.Vector3(Math.sin(yaw.rotation.y), 0, Math.cos(yaw.rotation.y));
+      const yawDir = new THREE.Vector3(-Math.sin(yaw.rotation.y), 0, -Math.cos(yaw.rotation.y));
       const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), yawDir).normalize();
       dir.addScaledVector(yawDir, forward).addScaledVector(right, strafe).normalize();
 
@@ -307,20 +233,13 @@
 
     function tick() {
       const dt = Math.min(0.05, clock.getDelta());
-
       updateArrowLook(dt);
       move(dt);
-
-      mixers.forEach(m => m.update(dt));
-
       sun.position.set(player.position.x + 200, 300, player.position.z + 150);
       sun.target?.position.copy(player.position);
-
       renderer.render(scene, camera);
-
       debug.textContent = `pos: ${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}, ${player.position.z.toFixed(1)}\n` +
                           `yaw: ${(THREE.MathUtils.radToDeg(yaw.rotation.y)%360).toFixed(1)}°  pitch: ${(THREE.MathUtils.radToDeg(pitch.rotation.x)).toFixed(1)}°`;
-
       requestAnimationFrame(tick);
     }
 
