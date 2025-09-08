@@ -5,25 +5,54 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Unkown</title>
   <style>
-    html, body { height: 100%; margin: 0; background:#0b0e13; color:#e5e7eb; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
-    #ui { position: fixed; top: 0; left: 0; right:0; display:flex; align-items:center; justify-content:space-between; padding: 10px 12px; pointer-events: none; }
+    html, body { height: 100%; margin: 0; background:#0b0e13; color:#e5e7eb; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji"; overflow:hidden; }
+    #ui { position: fixed; top: 0; left: 0; right:0; display:flex; align-items:center; justify-content:space-between; padding: 10px 12px; pointer-events: none; z-index:5; }
     #hint { pointer-events: none; opacity: 0.9; }
     #btnStart { pointer-events: auto; border:1px solid #374151; background:#111827; color:#e5e7eb; padding:8px 12px; border-radius:10px; cursor:pointer; }
     #btnStart:hover { background:#0f172a; }
-    .crosshair { position: fixed; top: 50%; left: 50%; width: 16px; height: 16px; transform: translate(-50%, -50%); pointer-events: none; }
+    .crosshair { position: fixed; top: 50%; left: 50%; width: 16px; height: 16px; transform: translate(-50%, -50%); pointer-events: none; z-index:5; }
     .crosshair::before, .crosshair::after { content: ""; position: absolute; background: #e5e7eb; }
     .crosshair::before { left: 7px; top: 0; width: 2px; height: 16px; }
     .crosshair::after { top: 7px; left: 0; width: 16px; height: 2px; }
-    #debug { position: fixed; left: 10px; bottom: 10px; background: rgba(0,0,0,0.35); padding: 8px 10px; border-radius: 10px; font-size: 12px; white-space: pre; pointer-events: none; }
+    #debug { position: fixed; left: 10px; bottom: 10px; background: rgba(0,0,0,0.35); padding: 8px 10px; border-radius: 10px; font-size: 12px; white-space: pre; pointer-events: none; z-index:5; }
+
+    /* --- Menu Screen --- */
+    #menuScreen {
+      position: fixed;
+      inset: 0;
+      background: url("Resources/menus.png") center/cover no-repeat;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+    #menuScreen button {
+      margin: 10px;
+      padding: 12px 24px;
+      font-size: 18px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      background: rgba(17,24,39,0.8);
+      color: #e5e7eb;
+    }
+    #menuScreen button:hover { background: rgba(31,41,55,0.9); }
   </style>
 </head>
 <body>
   <div id="ui">
-    <div id="hint">WASD / IJKL to move · Mouse or Arrow Keys to look · Space to jump</div>
+    <div id="hint">WASD / IJKL to move · Mouse or Arrow Keys to look · Space to jump · Shift to sprint</div>
     <button id="btnStart">Click to enter</button>
   </div>
   <div class="crosshair" aria-hidden="true"></div>
   <div id="debug"></div>
+
+  <!-- Menu Screen -->
+  <div id="menuScreen">
+    <button id="btnResume">Resume</button>
+    <button id="btnQuit">Quit</button>
+  </div>
 
   <script type="importmap">
     {
@@ -69,7 +98,7 @@
     const objLoader = new OBJLoader();
     const mtlLoader = new MTLLoader();
 
-    // --- Ground (flat green with noise) ---
+    // --- Ground ---
     const groundSize = 512;
     const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize, 1, 1);
     const canvas = document.createElement('canvas');
@@ -97,7 +126,7 @@
     ground.receiveShadow = true;
     scene.add(ground);
 
-    // --- Trees (placeholder simple) ---
+    // --- Trees ---
     const treeParent = new THREE.Group();
     scene.add(treeParent);
 
@@ -129,10 +158,9 @@
         }
       }
     }
-
     scatterTrees(createTree());
 
-    // --- Player (Shade) ---
+    // --- Player ---
     const player = new THREE.Group();
     player.position.set(0, 0, 0);
     scene.add(player);
@@ -147,9 +175,13 @@
     const accel = 45;
     const damping = 10;
     const maxSpeed = 8;
+    const sprintMult = 1.7; // sprint factor
 
     const btnStart = document.getElementById('btnStart');
     const debug = document.getElementById('debug');
+    const menuScreen = document.getElementById('menuScreen');
+    const btnResume = document.getElementById('btnResume');
+    const btnQuit = document.getElementById('btnQuit');
 
     const MOUSE_BASE = 0.002;
     const minecraftSensitivity122 = MOUSE_BASE * (122 / 100);
@@ -162,6 +194,7 @@
     });
 
     btnStart.addEventListener('click', () => {
+      hideMenu();
       requestLock();
       btnStart.blur();
     });
@@ -198,16 +231,23 @@
       const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), yawDir).normalize();
       dir.addScaledVector(yawDir, forward).addScaledVector(right, strafe).normalize();
 
+      let curAccel = accel;
+      let curMax = maxSpeed;
+      if (keys.has('shift') || keys.has('shiftleft') || keys.has('shiftright')) {
+        curAccel *= sprintMult;
+        curMax *= sprintMult;
+      }
+
       if (dir.lengthSq() > 0) {
-        velocity.addScaledVector(dir, accel * dt);
+        velocity.addScaledVector(dir, curAccel * dt);
       } else {
         const decel = Math.max(0, 1 - damping * dt);
         velocity.multiplyScalar(decel);
       }
 
       const v2 = new THREE.Vector2(velocity.x, velocity.z);
-      if (v2.length() > maxSpeed) {
-        v2.setLength(maxSpeed);
+      if (v2.length() > curMax) {
+        v2.setLength(curMax);
         velocity.x = v2.x; velocity.z = v2.y;
       }
 
@@ -225,6 +265,35 @@
       if (player.position.y < 0) { player.position.y = 0; onGround = true; }
     }
 
+    // --- Menu logic ---
+    function showMenu() {
+      menuScreen.style.display = "flex";
+      document.exitPointerLock?.();
+    }
+    function hideMenu() {
+      menuScreen.style.display = "none";
+    }
+
+    let menuVisible = true;
+    showMenu();
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === "Escape") {
+        menuVisible = !menuVisible;
+        if (menuVisible) showMenu();
+        else { hideMenu(); requestLock(); }
+      }
+    });
+
+    btnResume.addEventListener('click', () => {
+      hideMenu();
+      menuVisible = false;
+      requestLock();
+    });
+    btnQuit.addEventListener('click', () => {
+      window.location.reload();
+    });
+
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
@@ -233,8 +302,10 @@
 
     function tick() {
       const dt = Math.min(0.05, clock.getDelta());
-      updateArrowLook(dt);
-      move(dt);
+      if (!menuVisible) {
+        updateArrowLook(dt);
+        move(dt);
+      }
       sun.position.set(player.position.x + 200, 300, player.position.z + 150);
       sun.target?.position.copy(player.position);
       renderer.render(scene, camera);
@@ -242,8 +313,8 @@
                           `yaw: ${(THREE.MathUtils.radToDeg(yaw.rotation.y)%360).toFixed(1)}°  pitch: ${(THREE.MathUtils.radToDeg(pitch.rotation.x)).toFixed(1)}°`;
       requestAnimationFrame(tick);
     }
-
     tick();
   </script>
 </body>
 </html>
+
