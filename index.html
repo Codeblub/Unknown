@@ -1,8 +1,363 @@
-<html>
-<style>
-  body {
-  background:grey;
-  }
-</style>
-  <h1>Test 1</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Unkown — Plains Demo</title>
+  <style>
+    html, body { height: 100%; margin: 0; background:#0b0e13; color:#e5e7eb; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+    #ui { position: fixed; top: 0; left: 0; right:0; display:flex; align-items:center; justify-content:space-between; padding: 10px 12px; pointer-events: none; }
+    #hint { pointer-events: none; opacity: 0.9; }
+    #btnStart { pointer-events: auto; border:1px solid #374151; background:#111827; color:#e5e7eb; padding:8px 12px; border-radius:10px; cursor:pointer; }
+    #btnStart:hover { background:#0f172a; }
+    .crosshair { position: fixed; top: 50%; left: 50%; width: 16px; height: 16px; transform: translate(-50%, -50%); pointer-events: none; }
+    .crosshair::before, .crosshair::after { content: ""; position: absolute; background: #e5e7eb; }
+    .crosshair::before { left: 7px; top: 0; width: 2px; height: 16px; }
+    .crosshair::after { top: 7px; left: 0; width: 16px; height: 2px; }
+    #debug { position: fixed; left: 10px; bottom: 10px; background: rgba(0,0,0,0.35); padding: 8px 10px; border-radius: 10px; font-size: 12px; white-space: pre; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div id="hint">WASD / IJKL to move · Mouse or Arrow Keys to look · Space to jump</div>
+    <button id="btnStart">Click to enter</button>
+  </div>
+  <div class="crosshair" aria-hidden="true"></div>
+  <div id="debug"></div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.164.1/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.164.1/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+    import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+
+    // --- Basic Three.js setup ---
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87CEEB); // sky-ish
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+
+    // A pivot hierarchy for FPS look (yaw then pitch)
+    const yaw = new THREE.Object3D();
+    const pitch = new THREE.Object3D();
+    yaw.position.set(0, 1.8, 0); // eye height
+    yaw.add(pitch);
+    pitch.add(camera);
+    scene.add(yaw);
+
+    // Lighting
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x88aaff, 0.4);
+    scene.add(hemi);
+    const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+    sun.position.set(200, 300, 150);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    scene.add(sun);
+
+    // --- Loaders ---
+    const mtlLoader = new MTLLoader();
+    const objLoader = new OBJLoader();
+
+    function tryPaths(paths, loaderFn) {
+      return paths.reduce((p, path) => p.catch(() => loaderFn(path)), Promise.reject());
+    }
+
+    // --- Ground ---
+    // Spec: plains.png in 16x16 tile. We'll build a large plane that repeats the texture per 16-unit tile.
+    const groundSize = 512; // world size (width & depth)
+    const tileSize = 16;    // tile width = 16 units
+    const tiles = groundSize / tileSize; // 32 tiles each way
+
+    const groundTexture = new THREE.TextureLoader().load('Resources/plains.png');
+    groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
+    groundTexture.magFilter = THREE.NearestFilter;
+    groundTexture.minFilter = THREE.NearestMipMapNearestFilter;
+    groundTexture.repeat.set(tiles, tiles);
+
+    const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize, 1, 1);
+    const groundMat = new THREE.MeshLambertMaterial({ map: groundTexture });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // If a ground OBJ exists, load it and place it as a decorative mesh just above the plane (optional)
+    tryPaths([
+      'Resources/models/blocks/ground/ground.onj', // as provided
+      'Resources/models/blocks/ground/ground.obj'  // common fix
+    ], (path) => objLoader.loadAsync(path)).then(obj => {
+      obj.traverse(n => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; }});
+      obj.position.set(0, 0.02, 0);
+      scene.add(obj);
+    }).catch(() => {/* silent fallback to textured plane only */});
+
+    // --- Trees ---
+    const treeParent = new THREE.Group();
+    scene.add(treeParent);
+
+    function loadTreePrototype() {
+      // Try OBJ first, then MTL (to grab material) and attach to a simple geometry as ultimate fallback.
+      return tryPaths([
+        'Resources/models/tree/tree.ojb', // as provided
+        'Resources/models/tree/tree.obj'  // common fix
+      ], (path) => objLoader.loadAsync(path)).catch(async () => {
+        try {
+          const mtl = await mtlLoader.loadAsync('Resources/models/tree/tree.mtl');
+          mtl.preload();
+          objLoader.setMaterials(mtl);
+          return await objLoader.loadAsync('Resources/models/tree/tree.obj');
+        } catch {
+          // Last-resort cube + texture to ensure something visible
+          const barkTex = new THREE.TextureLoader().load('Resources/models/tree/tree.png');
+          barkTex.magFilter = THREE.NearestFilter;
+          const dummy = new THREE.Group();
+          const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 3, 8), new THREE.MeshLambertMaterial({ map: barkTex }));
+          trunk.position.y = 1.5;
+          trunk.castShadow = true; trunk.receiveShadow = true;
+          const leaves = new THREE.Mesh(new THREE.SphereGeometry(1.5, 12, 12), new THREE.MeshLambertMaterial({ color: 0x2e7d32 }));
+          leaves.position.y = 3.4;
+          leaves.castShadow = true; leaves.receiveShadow = true;
+          dummy.add(trunk, leaves);
+          return dummy;
+        }
+      });
+    }
+
+    const treePromise = loadTreePrototype();
+
+    function scatterTrees(proto) {
+      // Place two trees for every 2 tiles (i.e., a 32-unit grid). We'll place them slightly jittered.
+      const step = tileSize * 2; // 32 units
+      const half = groundSize / 2;
+      for (let x = -half + step/2; x < half; x += step) {
+        for (let z = -half + step/2; z < half; z += step) {
+          for (let i = 0; i < 2; i++) {
+            const t = proto.clone(true);
+            const jx = (Math.random() - 0.5) * (step * 0.6);
+            const jz = (Math.random() - 0.5) * (step * 0.6);
+            t.position.set(x + jx, 0, z + jz);
+            t.traverse(n => { if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; }});
+            treeParent.add(t);
+          }
+        }
+      }
+    }
+
+    treePromise.then(scatterTrees);
+
+    // --- Player (Shade) ---
+    const player = new THREE.Group();
+    player.position.set(0, 0, 0);
+    scene.add(player);
+
+    // Attach the yaw pivot to the player so the camera follows
+    player.add(yaw);
+
+    async function loadShade() {
+      try {
+        // Try OBJ by the provided path first, then fixed extension
+        const shadeObj = await tryPaths([
+          'Resources/models/characters/Shade/shade.ojb',
+          'Resources/models/characters/Shade/shade.obj'
+        ], (path) => objLoader.loadAsync(path)).catch(async () => {
+          // Try with MTL pairing
+          const mtl = await mtlLoader.loadAsync('Resources/models/characters/Shade/shade.mtl');
+          mtl.preload();
+          objLoader.setMaterials(mtl);
+          return await objLoader.loadAsync('Resources/models/characters/Shade/shade.obj');
+        });
+
+        // Apply texture if present
+        const tex = new THREE.TextureLoader().load('Resources/models/characters/Shade/texture.png');
+        tex.magFilter = THREE.NearestFilter;
+        shadeObj.traverse(n => {
+          if (n.isMesh) {
+            n.material = new THREE.MeshLambertMaterial({ map: tex });
+            n.castShadow = true; n.receiveShadow = true;
+          }
+        });
+
+        shadeObj.scale.setScalar(1);
+        shadeObj.position.set(0, 0, 0);
+        player.add(shadeObj);
+
+        // Attempt to load walk animation (will only work if tracks match the geometry). If incompatible, we just ignore.
+        try {
+          const resp = await fetch('Resources/animation/character/Shade/walk.json');
+          if (resp.ok) {
+            const data = await resp.json();
+            const mixer = new THREE.AnimationMixer(shadeObj);
+            const clip = THREE.AnimationClip.parse(data);
+            const action = mixer.clipAction(clip);
+            action.play();
+            // wire mixer into update loop
+            mixers.push(mixer);
+          }
+        } catch (e) {
+          console.warn('Walk animation could not be applied:', e);
+        }
+      } catch (e) {
+        console.warn('Shade model load failed, using capsule placeholder.', e);
+        const capsuleGeo = new THREE.CapsuleGeometry(0.4, 1.0, 4, 8);
+        const capsuleMat = new THREE.MeshLambertMaterial({ color: 0x5555ff });
+        const cap = new THREE.Mesh(capsuleGeo, capsuleMat);
+        cap.castShadow = true; cap.receiveShadow = true;
+        cap.position.y = 1.0;
+        player.add(cap);
+      }
+    }
+    const mixers = [];
+    loadShade();
+
+    // --- Controls ---
+    const keys = new Set();
+    window.addEventListener('keydown', (e) => { keys.add(e.key.toLowerCase()); });
+    window.addEventListener('keyup',   (e) => { keys.delete(e.key.toLowerCase()); });
+
+    const velocity = new THREE.Vector3();
+    const accel = 45;      // movement acceleration (units/s^2)
+    const damping = 10;    // decel when no input
+    const maxSpeed = 8;    // clamp
+
+    // Mouse look with Pointer Lock; also support Arrow keys fallback.
+    const btnStart = document.getElementById('btnStart');
+    const debug = document.getElementById('debug');
+
+    // Minecraft sensitivity mapping note:
+    // Minecraft uses a nonlinear curve, but around the middle, PointerLock's 0.002 baseline feels similar.
+    // We'll scale by 122/100 relative to a nominal sensitivity, as requested.
+    const MOUSE_BASE = 0.002;
+    const minecraftSensitivity122 = MOUSE_BASE * (122 / 100);
+
+    let pointerLocked = false;
+
+    function requestLock() {
+      renderer.domElement.requestPointerLock();
+    }
+
+    document.addEventListener('pointerlockchange', () => {
+      pointerLocked = document.pointerLockElement === renderer.domElement;
+    });
+
+    btnStart.addEventListener('click', () => {
+      requestLock();
+      btnStart.blur();
+    });
+
+    // Look with mouse
+    document.addEventListener('mousemove', (e) => {
+      if (!pointerLocked) return;
+      yaw.rotation.y -= e.movementX * minecraftSensitivity122;
+      pitch.rotation.x -= e.movementY * minecraftSensitivity122;
+      pitch.rotation.x = Math.max(-Math.PI/2 + 0.001, Math.min(Math.PI/2 - 0.001, pitch.rotation.x));
+    });
+
+    // Arrow keys also control look
+    function updateArrowLook(dt) {
+      const lookSpeed = 1.5; // radians per second using arrows
+      if (keys.has('arrowleft'))  yaw.rotation.y += lookSpeed * dt;
+      if (keys.has('arrowright')) yaw.rotation.y -= lookSpeed * dt;
+      if (keys.has('arrowup'))    pitch.rotation.x += lookSpeed * dt;
+      if (keys.has('arrowdown'))  pitch.rotation.x -= lookSpeed * dt;
+      pitch.rotation.x = Math.max(-Math.PI/2 + 0.001, Math.min(Math.PI/2 - 0.001, pitch.rotation.x));
+    }
+
+    // Simple ground collision & gravity for jump
+    let onGround = true;
+    let vy = 0;
+    const gravity = 30;
+    const jumpSpeed = 10;
+
+    // Movement loop
+    const clock = new THREE.Clock();
+
+    function move(dt) {
+      // Collect input (WASD + IJKL mirror)
+      const forward = (keys.has('w') || keys.has('i')) ? 1 : (keys.has('s') || keys.has('k')) ? -1 : 0;
+      const strafe  = (keys.has('d') || keys.has('l')) ? 1 : (keys.has('a') || keys.has('j')) ? -1 : 0;
+
+      // Acceleration in camera space (yaw only)
+      const dir = new THREE.Vector3();
+      const yawDir = new THREE.Vector3(Math.sin(yaw.rotation.y), 0, Math.cos(yaw.rotation.y));
+      const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), yawDir).normalize().negate();
+      dir.addScaledVector(yawDir, forward).addScaledVector(right, strafe).normalize();
+
+      if (dir.lengthSq() > 0) {
+        velocity.addScaledVector(dir, accel * dt);
+      } else {
+        // damping
+        const decel = Math.max(0, 1 - damping * dt);
+        velocity.multiplyScalar(decel);
+      }
+
+      // clamp horizontal speed
+      const v2 = new THREE.Vector2(velocity.x, velocity.z);
+      if (v2.length() > maxSpeed) {
+        v2.setLength(maxSpeed);
+        velocity.x = v2.x; velocity.z = v2.y; // v2.y? careful: v2.y corresponds to z
+        velocity.z = v2.y;
+      }
+
+      // Apply gravity and jump
+      if (onGround) vy = 0;
+      vy -= gravity * dt;
+      if ((keys.has(' ') || keys.has('space')) && onGround) {
+        vy = jumpSpeed;
+        onGround = false;
+      }
+
+      // Integrate position
+      player.position.x += velocity.x * dt;
+      player.position.z += velocity.z * dt;
+      player.position.y += vy * dt;
+
+      // Simple ground plane at y=0
+      if (player.position.y < 0) { player.position.y = 0; onGround = true; }
+    }
+
+    // Resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Animate
+    function tick() {
+      const dt = Math.min(0.05, clock.getDelta());
+
+      updateArrowLook(dt);
+      move(dt);
+
+      mixers.forEach(m => m.update(dt));
+
+      // Keep sun following player a bit for nicer lighting
+      sun.position.set(player.position.x + 200, 300, player.position.z + 150);
+      sun.target?.position.copy(player.position);
+
+      renderer.render(scene, camera);
+
+      // Debug overlay
+      debug.textContent = `pos: ${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}, ${player.position.z.toFixed(1)}\n` +
+                          `yaw: ${(THREE.MathUtils.radToDeg(yaw.rotation.y)%360).toFixed(1)}°  pitch: ${(THREE.MathUtils.radToDeg(pitch.rotation.x)).toFixed(1)}°`;
+
+      requestAnimationFrame(tick);
+    }
+
+    tick();
+  </script>
+</body>
 </html>
