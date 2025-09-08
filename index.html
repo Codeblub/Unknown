@@ -1,134 +1,158 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Unkown</title>
+  <meta charset="UTF-8">
+  <title>Plains Demo with Trees</title>
   <style>
-    html, body { height: 100%; margin: 0; background:#0b0e13; color:#e5e7eb; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
-    #ui { position: fixed; top: 0; left: 0; right:0; display:flex; align-items:center; justify-content:space-between; padding: 10px 12px; pointer-events: none; }
-    #hint { pointer-events: none; opacity: 0.9; }
-    #btnStart { pointer-events: auto; border:1px solid #374151; background:#111827; color:#e5e7eb; padding:8px 12px; border-radius:10px; cursor:pointer; }
-    #btnStart:hover { background:#0f172a; }
-    .crosshair { position: fixed; top: 50%; left: 50%; width: 16px; height: 16px; transform: translate(-50%, -50%); pointer-events: none; }
-    .crosshair::before, .crosshair::after { content: ""; position: absolute; background: #e5e7eb; }
-    .crosshair::before { left: 7px; top: 0; width: 2px; height: 16px; }
-    .crosshair::after { top: 7px; left: 0; width: 16px; height: 2px; }
-    #debug { position: fixed; left: 10px; bottom: 10px; background: rgba(0,0,0,0.35); padding: 8px 10px; border-radius: 10px; font-size: 12px; white-space: pre; pointer-events: none; }
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
   </style>
 </head>
 <body>
-  <div id="ui">
-    <div id="hint">WASD / IJKL to move · Mouse or Arrow Keys to look · Space to jump · Shift to sprint</div>
-    <button id="btnStart">Click to enter</button>
-  </div>
-  <div class="crosshair" aria-hidden="true"></div>
-  <div id="debug"></div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/PointerLockControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/OBJLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/MTLLoader.js"></script>
+<script>
+  let scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x87ceeb);
 
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://unpkg.com/three@0.164.1/build/three.module.js",
-        "three/addons/": "https://unpkg.com/three@0.164.1/examples/jsm/"
+  let camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  let renderer = new THREE.WebGLRenderer();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  // Lights
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
+  hemiLight.position.set(0, 200, 0);
+  scene.add(hemiLight);
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+  dirLight.position.set(100, 200, 100);
+  scene.add(dirLight);
+
+  // Ground
+  const groundGeo = new THREE.PlaneGeometry(200, 200, 32, 32);
+  const groundMat = new THREE.MeshLambertMaterial({ color: 0x1d8238 });
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  scene.add(ground);
+
+  // Controls
+  const controls = new THREE.PointerLockControls(camera, document.body);
+  document.body.addEventListener('click', () => controls.lock());
+  scene.add(controls.getObject());
+
+  // Movement
+  let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+  let moveI = false, moveK = false, moveJ = false, moveL = false;
+  let sprint = false;
+
+  document.addEventListener('keydown', (event) => {
+    switch (event.code) {
+      case 'KeyW': moveForward = true; break;
+      case 'KeyS': moveBackward = true; break;
+      case 'KeyA': moveLeft = true; break;
+      case 'KeyD': moveRight = true; break;
+      case 'KeyI': moveI = true; break;
+      case 'KeyK': moveK = true; break;
+      case 'KeyJ': moveJ = true; break; // fixed strafe
+      case 'KeyL': moveL = true; break; // fixed strafe
+      case 'ShiftLeft':
+      case 'ShiftRight': sprint = true; break;
+    }
+  });
+  document.addEventListener('keyup', (event) => {
+    switch (event.code) {
+      case 'KeyW': moveForward = false; break;
+      case 'KeyS': moveBackward = false; break;
+      case 'KeyA': moveLeft = false; break;
+      case 'KeyD': moveRight = false; break;
+      case 'KeyI': moveI = false; break;
+      case 'KeyK': moveK = false; break;
+      case 'KeyJ': moveJ = false; break;
+      case 'KeyL': moveL = false; break;
+      case 'ShiftLeft':
+      case 'ShiftRight': sprint = false; break;
+    }
+  });
+
+  // Tree loader
+  const treeParent = new THREE.Group();
+  scene.add(treeParent);
+
+  function loadTreePrototype(callback) {
+    const mtlLoader = new THREE.MTLLoader();
+    mtlLoader.setPath('resources/models/tree/');
+    mtlLoader.load('tree.mtl', (materials) => {
+      materials.preload();
+      const objLoader = new THREE.OBJLoader();
+      objLoader.setMaterials(materials);
+      objLoader.setPath('resources/models/tree/');
+      objLoader.load('tree.obj', (object) => {
+        callback(object);
+      }, undefined, () => {
+        // fallback cube if model not found
+        const geo = new THREE.CylinderGeometry(0.5, 0.5, 3);
+        const mat = new THREE.MeshLambertMaterial({ color: 0x228b22 });
+        callback(new THREE.Mesh(geo, mat));
+      });
+    });
+  }
+
+  function scatterTrees(proto) {
+    for (let x = -80; x <= 80; x += 16 * 2) {
+      for (let z = -80; z <= 80; z += 16 * 2) {
+        const tree = proto.clone();
+        tree.position.set(x + (Math.random() * 10 - 5), 0, z + (Math.random() * 10 - 5));
+        tree.scale.set(2, 2, 2);
+        treeParent.add(tree);
       }
     }
-  </script>
+  }
 
-  <script type="module">
-    import * as THREE from 'three';
+  loadTreePrototype(scatterTrees);
 
-    // Basic scene
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+  // Animate
+  let prevTime = performance.now();
+  const velocity = new THREE.Vector3();
+  const direction = new THREE.Vector3();
+
+  function animate() {
+    requestAnimationFrame(animate);
+
+    const time = performance.now();
+    const delta = (time - prevTime) / 1000;
+
+    direction.z = Number(moveForward || moveI) - Number(moveBackward || moveK);
+    direction.x = Number(moveRight || moveL) - Number(moveLeft || moveJ);
+    direction.normalize();
+
+    let speed = sprint ? 800.0 : 400.0;
+
+    if (controls.isLocked === true) {
+      velocity.x -= velocity.x * 10.0 * delta;
+      velocity.z -= velocity.z * 10.0 * delta;
+
+      velocity.x -= direction.x * speed * delta;
+      velocity.z -= direction.z * speed * delta;
+
+      controls.moveRight(-velocity.x * delta);
+      controls.moveForward(-velocity.z * delta);
+    }
+
+    prevTime = time;
+    renderer.render(scene, camera);
+  }
+  controls.getObject().position.set(0, 10, 20);
+  animate();
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
-
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87CEEB);
-
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-
-    const yaw = new THREE.Object3D();
-    const pitch = new THREE.Object3D();
-    yaw.position.set(0, 1.8, 0);
-    yaw.add(pitch);
-    pitch.add(camera);
-    scene.add(yaw);
-
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(50, 100, 50);
-    scene.add(light);
-
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(200, 200),
-      new THREE.MeshLambertMaterial({ color: 0x1d8238 })
-    );
-    ground.rotation.x = -Math.PI / 2;
-    scene.add(ground);
-
-    // Controls
-    const keys = new Set();
-    window.addEventListener('keydown', (e) => keys.add(e.key.toLowerCase()));
-    window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
-
-    const velocity = new THREE.Vector3();
-    const accel = 45;
-    const damping = 10;
-    const baseMaxSpeed = 8;
-    const sprintMultiplier = 2.0;
-
-    const clock = new THREE.Clock();
-
-    function move(dt) {
-      const forward = (keys.has('w') || keys.has('i')) ? 1 : (keys.has('s') || keys.has('k')) ? -1 : 0;
-      const strafe  = (keys.has('d') || keys.has('l')) ? 1 : (keys.has('a') || keys.has('j')) ? -1 : 0;
-
-      const dir = new THREE.Vector3();
-      const yawDir = new THREE.Vector3(Math.sin(yaw.rotation.y), 0, Math.cos(yaw.rotation.y));
-      const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), yawDir).normalize();
-      dir.addScaledVector(yawDir, forward).addScaledVector(right, strafe).normalize();
-
-      if (dir.lengthSq() > 0) {
-        velocity.addScaledVector(dir, accel * dt);
-      } else {
-        const decel = Math.max(0, 1 - damping * dt);
-        velocity.multiplyScalar(decel);
-      }
-
-      const sprinting = keys.has('shift') || keys.has('shiftleft') || keys.has('shiftright');
-      const maxSpeed = sprinting ? baseMaxSpeed * sprintMultiplier : baseMaxSpeed;
-
-      const v2 = new THREE.Vector2(velocity.x, velocity.z);
-      if (v2.length() > maxSpeed) {
-        v2.setLength(maxSpeed);
-        velocity.x = v2.x; velocity.z = v2.y;
-      }
-
-      yaw.position.addScaledVector(velocity, dt);
-    }
-
-    const MOUSE_SENS = 0.002 * (122 / 100);
-    let pointerLocked = false;
-
-    document.getElementById('btnStart').addEventListener('click', () => {
-      renderer.domElement.requestPointerLock();
-    });
-    document.addEventListener('pointerlockchange', () => {
-      pointerLocked = document.pointerLockElement === renderer.domElement;
-    });
-    document.addEventListener('mousemove', (e) => {
-      if (!pointerLocked) return;
-      yaw.rotation.y += e.movementX * MOUSE_SENS;
-      pitch.rotation.x -= e.movementY * MOUSE_SENS;
-      pitch.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch.rotation.x));
-    });
-
-    function tick() {
-      const dt = Math.min(0.05, clock.getDelta());
-      move(dt);
-      renderer.render(scene, camera);
-      requestAnimationFrame(tick);
-    }
-    tick();
-  </script>
+  });
+</script>
 </body>
 </html>
+
