@@ -112,7 +112,7 @@
       // Try OBJ first, then MTL (to grab material) and attach to a simple geometry as ultimate fallback.
       return tryPaths([
         'Resources/models/tree/tree.ojb', // as provided
-        'Resources/models/tree/tree.obj'  // common fix
+        'Resources/models/tree/tree.mtl'  // common fix
       ], (path) => objLoader.loadAsync(path)).catch(async () => {
         try {
           const mtl = await mtlLoader.loadAsync('Resources/models/tree/tree.mtl');
@@ -286,8 +286,8 @@
 
     function move(dt) {
       // Collect input (WASD + IJKL mirror)
-      const forward = (keys.has('w') || keys.has('i')) ? 1 : (keys.has('s') || keys.has('k')) ? -1 : 0;
-      const strafe  = (keys.has('d') || keys.has('l')) ? 1 : (keys.has('a') || keys.has('j')) ? -1 : 0;
+      const forward = (keys.has('s') || keys.has('j')) ? 1 : (keys.has('w') || keys.has('l')) ? -1 : 0;
+      const strafe  = (keys.has('a') || keys.has('k')) ? 1 : (keys.has('d') || keys.has('i')) ? -1 : 0;
 
       // Acceleration in camera space (yaw only)
       const dir = new THREE.Vector3();
