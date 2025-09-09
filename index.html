@@ -314,6 +314,38 @@
                           `yaw: ${(THREE.MathUtils.radToDeg(yaw.rotation.y)%360).toFixed(1)}°  pitch: ${(THREE.MathUtils.radToDeg(pitch.rotation.x)).toFixed(1)}°`;
       requestAnimationFrame(tick);
     }
+    // --- Spawn Assassin Character ---
+let assassin;
+
+const texLoader = new THREE.TextureLoader();
+const assassinTexture = texLoader.load("Resources/models/characters/mr.assassin/default.png");
+
+mtlLoader.load("Resources/models/characters/mr.assassin/default_Mr.assassin.mtl", (mtl) => {
+  mtl.preload();
+  mtl.materials.default.map = assassinTexture;
+
+  objLoader.setMaterials(mtl);
+  objLoader.load("Resources/models/characters/mr.assassin/default_Mr.assassin.obj", (obj) => {
+    assassin = obj;
+    assassin.position.set(77.8, 0, -1.1);
+    assassin.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        child.material.map = assassinTexture;
+      }
+    });
+    scene.add(assassin);
+  });
+});
+
+// --- Make assassin face player each frame ---
+function updateAssassin() {
+  if (assassin) {
+    assassin.lookAt(player.position);
+  }
+}
+
     tick();
   </script>
 </body>
