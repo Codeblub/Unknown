@@ -301,49 +301,33 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    // --- Assassin spawn ---
-    let assassin;
-    const texLoader = new THREE.TextureLoader();
-    const assassinTexture = texLoader.load("Resources/models/characters/mr.assassin/default.png");
+  // --- Assassin spawn ---
+let assassin;
+const texLoader = new THREE.TextureLoader();
+const assassinTexture = texLoader.load("Resources/models/characters/mr.assassin/default.png");
 
-    mtlLoader.load("Resources/models/characters/mr.assassin/default_Mr.assassin.mtl", (mtl) => {
-      mtl.preload();
-      objLoader.setMaterials(mtl);
-      objLoader.load("Resources/models/characters/mr.assassin/default_Mr.assassin.obj", (obj) => {
-        assassin = obj;
-        assassin.position.set(77.8, 0, -1.1);
-        assassin.traverse((child) => {
-          if (child.isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-            child.material.map = assassinTexture;
-          }
-        });
-        scene.add(assassin);
-      });
-    });
+objLoader.load("Resources/models/characters/mr.assassin/default_Mr.assassin.obj", (obj) => {
+  assassin = obj;
+  assassin.position.set(77.8, 0, -1.1);
 
-    function updateAssassin() {
-      if (assassin) {
-        assassin.lookAt(player.position);
-      }
+  assassin.traverse((child) => {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+      // force material with texture
+      child.material = new THREE.MeshLambertMaterial({ map: assassinTexture });
     }
+  });
 
-    function tick() {
-      const dt = Math.min(0.05, clock.getDelta());
-      if (!menuVisible) {
-        updateArrowLook(dt);
-        move(dt);
-      }
-      updateAssassin();
+  // adjust scale if needed
+  assassin.scale.set(1, 1, 1); // try 0.1 or 10 if invisible
+  scene.add(assassin);
+});
 
-      sun.position.set(player.position.x + 200, 300, player.position.z + 150);
-      sun.target?.position.copy(player.position);
-      renderer.render(scene, camera);
-      debug.textContent = `pos: ${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}, ${player.position.z.toFixed(1)}\n` +
-                          `yaw: ${(THREE.MathUtils.radToDeg(yaw.rotation.y)%360).toFixed(1)}°  pitch: ${(THREE.MathUtils.radToDeg(pitch.rotation.x)).toFixed(1)}°`;
-      requestAnimationFrame(tick);
-    }
+function updateAssassin() {
+  if (assassin) assassin.lookAt(player.position);
+}
+
     tick();
   </script>
 </body>
