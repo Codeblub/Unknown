@@ -300,53 +300,50 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-   function spawnAssassin(scene) {
-  const textureLoader = new THREE.TextureLoader();
-  const texture = textureLoader.load('Resources/models/characters/mr.assassin/default.png');
-  texture.magFilter = THREE.NearestFilter;
-  texture.minFilter = THREE.NearestFilter;
-
-  const material = new THREE.MeshStandardMaterial({
-    map: texture,
-    transparent: true,
-  });
     // --- Assassin spawn ---
-let assassin;
-const texLoader = new THREE.TextureLoader();
+    let assassin;
+    const texLoader = new THREE.TextureLoader();
+    const assassinTexture = texLoader.load("Resources/models/characters/mr.assassin/default.png");
+    assassinTexture.magFilter = THREE.NearestFilter;
+    assassinTexture.minFilter = THREE.NearestFilter;
 
-const skinTex = texLoader.load("Resources/models/characters/mr.assassin/default.png");
-skinTex.magFilter = THREE.NearestFilter;
-skinTex.minFilter = THREE.NearestFilter;
+    objLoader.load("Resources/models/characters/mr.assassin/default_Mr.Assassin.obj", (obj) => {
+      assassin = obj;
+      assassin.position.set(77.8, 0, -1.1);
+      assassin.rotation.y = Math.PI; // rotate 180 so he faces forward
 
-const wingsTex = texLoader.load("Resources/models/characters/mr.assassin/forewings.png");
-wingsTex.magFilter = THREE.NearestFilter;
-wingsTex.minFilter = THREE.NearestFilter;
+      assassin.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+          child.material = new THREE.MeshLambertMaterial({ map: assassinTexture });
+        }
+      });
 
-const skinMat = new THREE.MeshLambertMaterial({ map: skinTex });
-const wingsMat = new THREE.MeshLambertMaterial({ map: wingsTex });
+      assassin.scale.set(1,1,1);
+      scene.add(assassin);
+    });
 
-objLoader.load("Resources/models/characters/mr.assassin/default_Mr.Assassin.obj", (obj) => {
-  assassin = obj;
-  assassin.position.set(77.8, 0, -1.1);
-  assassin.rotation.y = 0; // reset rotation, you said you'll handle orientation in Blockbench
-
-  assassin.traverse((child) => {
-    if (child.isMesh) {
-      child.castShadow = true;
-      child.receiveShadow = true;
-
-      // Use forewings texture for the "forewings" group, else use skin
-      if (child.name.toLowerCase().includes("forewings")) {
-        child.material = wingsMat;
-      } else {
-        child.material = skinMat;
-      }
+    function updateAssassin() {
+      if (assassin) assassin.lookAt(player.position);
     }
-  });
 
-  assassin.scale.set(1, 1, 1);
-  scene.add(assassin);
-});
+    function tick() {
+      const dt = Math.min(0.05, clock.getDelta());
+      if (!menuVisible) {
+        updateArrowLook(dt);
+        move(dt);
+      }
+      updateAssassin();
+
+      sun.position.set(player.position.x + 200, 300, player.position.z + 150);
+      sun.target?.position.copy(player.position);
+      renderer.render(scene, camera);
+      debug.textContent = `pos: ${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}, ${player.position.z.toFixed(1)}\n` +
+                          `yaw: ${(THREE.MathUtils.radToDeg(yaw.rotation.y)%360).toFixed(1)}°  pitch: ${(THREE.MathUtils.radToDeg(pitch.rotation.x)).toFixed(1)}°`;
+      requestAnimationFrame(tick);
+    }
+    tick();
   </script>
 </body>
 </html>
