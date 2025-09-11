@@ -310,28 +310,44 @@
     map: texture,
     transparent: true,
   });
+    // --- Assassin spawn ---
+let assassin;
+const texLoader = new THREE.TextureLoader();
 
-  const mtlLoader = new MTLLoader();
-  mtlLoader.load('Resources/models/characters/mr.assassin/default_Mr.Assassin.mtl', (mtl) => {
-    mtl.preload();
+const skinTex = texLoader.load("Resources/models/characters/mr.assassin/default.png");
+skinTex.magFilter = THREE.NearestFilter;
+skinTex.minFilter = THREE.NearestFilter;
 
-    const objLoader = new OBJLoader();
-    objLoader.setMaterials(mtl);
+const wingsTex = texLoader.load("Resources/models/characters/mr.assassin/forewings.png");
+wingsTex.magFilter = THREE.NearestFilter;
+wingsTex.minFilter = THREE.NearestFilter;
 
-    objLoader.load('Resources/models/characters/mr.assassin/default_Mr.Assassin.obj', (object) => {
-      object.traverse((child) => {
-        if (child.isMesh) {
-          child.material = material;
-        }
-      });
+const skinMat = new THREE.MeshLambertMaterial({ map: skinTex });
+const wingsMat = new THREE.MeshLambertMaterial({ map: wingsTex });
 
-      object.scale.set(1, 1, 1);
-      object.position.set(0, 0, -5);
+objLoader.load("Resources/models/characters/mr.assassin/default_Mr.Assassin.obj", (obj) => {
+  assassin = obj;
+  assassin.position.set(77.8, 0, -1.1);
+  assassin.rotation.y = 0; // reset rotation, you said you'll handle orientation in Blockbench
 
-      scene.add(object);
-    });
+  assassin.traverse((child) => {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+
+      // Use forewings texture for the "forewings" group, else use skin
+      if (child.name.toLowerCase().includes("forewings")) {
+        child.material = wingsMat;
+      } else {
+        child.material = skinMat;
+      }
+    }
   });
-}
+
+  assassin.scale.set(1, 1, 1);
+  scene.add(assassin);
+});
+  tick();
   </script>
 </body>
 </html>
