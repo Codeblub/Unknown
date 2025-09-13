@@ -300,6 +300,52 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
+    // ----------------------
+    // Animation: wave.json loader and trigger logic
+    // ----------------------
+    // We'll try to load Resources/animations/characters/mr.assassin/wave.json
+    // and prepare an AnimationClip. When player enters a 3x3x3 box around
+    // the assassin, the animation will play once. Leaving and re-entering
+    // will retrigger it.
+
+    const fileLoader = new THREE.FileLoader();
+    fileLoader.setResponseType('json');
+
+    let waveClip = null; // THREE.AnimationClip
+    fileLoader.load(
+      "Resources/animations/characters/mr.assassin/wave.json",
+      (json) => {
+        try {
+          // Common exported shapes:
+          //  - { animations: [ ... ] }  (Three.js exporter)
+          //  - [ ... ] (array of clip objects)
+          //  - single clip object
+          let clips = [];
+
+          if (json && json.animations && Array.isArray(json.animations) && json.animations.length > 0) {
+            clips = json.animations.map(a => THREE.AnimationClip.parse(a));
+          } else if (Array.isArray(json) && json.length > 0) {
+            clips = json.map(a => THREE.AnimationClip.parse(a));
+          } else if (json && (json.tracks || json.name)) {
+            clips = [THREE.AnimationClip.parse(json)];
+          }
+
+          if (clips.length > 0) {
+            waveClip = clips[0];
+            console.log('wave.json loaded, clip:', waveClip.name || waveClip);
+          } else {
+            console.warn('wave.json loaded but no clips found (unexpected format).', json);
+          }
+        } catch (err) {
+          console.warn('Failed to parse wave.json into AnimationClip:', err);
+        }
+      },
+      undefined,
+      (err) => {
+        console.warn('Could not load wave.json (404 or network error).', err);
+      }
+    );
+
     // --- Assassin spawn ---
     let assassin;
     const texLoader = new THREE.TextureLoader();
@@ -307,22 +353,107 @@
     assassinTexture.magFilter = THREE.NearestFilter;
     assassinTexture.minFilter = THREE.NearestFilter;
 
+    // Animation runtime state
+    let playerInWaveZone = false; // track enter/exit
+    const waveBoxHalf = 1.5; // 3x3x3 box -> half-extent 1.5
+    // mixer and action will be attached to assassin.userData after loading
+
     objLoader.load("Resources/models/characters/mr.assassin/default_Mr.Assassin.obj", (obj) => {
       assassin = obj;
       assassin.position.set(77.8, 0, -1.1);
-      assassin.rotation.y = Math.PI; // rotate 180 so he faces forward
+      // you said you manually oriented the model; we won't force rotation here
+      // assassin.rotation.y = 0;
 
       assassin.traverse((child) => {
         if (child.isMesh) {
           child.castShadow = true;
           child.receiveShadow = true;
+          // keep your current material behavior (you were overriding previously)
           child.material = new THREE.MeshLambertMaterial({ map: assassinTexture });
         }
       });
 
       assassin.scale.set(1,1,1);
+
+      // create mixer and (if waveClip is already loaded) prepare action
+      const mixer = new THREE.AnimationMixer(assassin);
+      assassin.userData.mixer = mixer;
+
+      if (waveClip) {
+        try {
+          const action = mixer.clipAction(waveClip);
+          action.setLoop(THREE.LoopOnce, 0);
+          action.clampWhenFinished = true;
+          assassin.userData.waveAction = action;
+        } catch (err) {
+          console.warn('Failed to create wave action (clip mismatch?).', err);
+        }
+      } else {
+        // if waveClip isn't loaded yet, we'll attach the action later when both are present.
+        assassin.userData.waveAction = null;
+      }
+
       scene.add(assassin);
     });
+
+    // If waveClip arrives *after* assassin, hook it up
+    // (poll every 200ms until both present - light-weight)
+    const tryHookWaveClip = () => {
+      if (!waveClip || !assassin) return;
+      if (!assassin.userData) assassin.userData = {};
+      if (!assassin.userData.mixer) {
+        assassin.userData.mixer = new THREE.AnimationMixer(assassin);
+      }
+      if (!assassin.userData.waveAction) {
+        try {
+          const action = assassin.userData.mixer.clipAction(waveClip);
+          action.setLoop(THREE.LoopOnce, 0);
+          action.clampWhenFinished = true;
+          assassin.userData.waveAction = action;
+          console.log('waveClip hooked to assassin after late load.');
+        } catch (err) {
+          console.warn('Failed to hook waveClip to assassin:', err);
+        }
+      }
+    };
+    const hookInterval = setInterval(() => {
+      tryHookWaveClip();
+      // stop polling if both available
+      if (assassin && assassin.userData && assassin.userData.waveAction) {
+        clearInterval(hookInterval);
+      }
+    }, 200);
+
+    // helper to check entry into 3x3x3 box and trigger animation
+    function checkWaveTrigger() {
+      if (!assassin) return;
+
+      const aPos = new THREE.Vector3();
+      const pPos = new THREE.Vector3();
+      assassin.getWorldPosition(aPos);
+      player.getWorldPosition(pPos);
+
+      const inside = Math.abs(pPos.x - aPos.x) <= waveBoxHalf &&
+                     Math.abs(pPos.y - aPos.y) <= waveBoxHalf &&
+                     Math.abs(pPos.z - aPos.z) <= waveBoxHalf;
+
+      if (inside && !playerInWaveZone) {
+        // player just entered
+        playerInWaveZone = true;
+        const action = assassin.userData?.waveAction;
+        if (action) {
+          action.reset();
+          action.play();
+          // optional: you can listen to finished event to set flags or trigger effects
+        } else {
+          // action not ready yet
+          console.log('Entered wave zone but wave action not ready yet.');
+        }
+      } else if (!inside && playerInWaveZone) {
+        // player left
+        playerInWaveZone = false;
+      }
+    }
 
     function updateAssassin() {
       if (assassin) assassin.lookAt(player.position);
@@ -336,11 +467,22 @@
       }
       updateAssassin();
 
+      // update animation mixer(s)
+      if (assassin && assassin.userData && assassin.userData.mixer) {
+        assassin.userData.mixer.update(dt);
+      }
+
+      // check trigger zone every frame (cheap)
+      checkWaveTrigger();
+
       sun.position.set(player.position.x + 200, 300, player.position.z + 150);
       sun.target?.position.copy(player.position);
       renderer.render(scene, camera);
+
       debug.textContent = `pos: ${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}, ${player.position.z.toFixed(1)}\n` +
-                          `yaw: ${(THREE.MathUtils.radToDeg(yaw.rotation.y)%360).toFixed(1)}°  pitch: ${(THREE.MathUtils.radToDeg(pitch.rotation.x)).toFixed(1)}°`;
+                          `yaw: ${(THREE.MathUtils.radToDeg(yaw.rotation.y)%360).toFixed(1)}°  pitch: ${(THREE.MathUtils.radToDeg(pitch.rotation.x)).toFixed(1)}°\n` +
+                          `waveZone: ${playerInWaveZone ? 'IN' : 'OUT'}`;
+
       requestAnimationFrame(tick);
     }
     tick();
