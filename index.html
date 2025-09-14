@@ -300,13 +300,7 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    // ----------------------
-    // Animation: wave.json loader and trigger logic
-    // ----------------------
-    // We'll try to load Resources/animations/characters/mr.assassin/wave.json
-    // and prepare an AnimationClip. When player enters a 3x3x3 box around
-    // the assassin, the animation will play once. Leaving and re-entering
-    // will retrigger it.
+
 
     const fileLoader = new THREE.FileLoader();
     fileLoader.setResponseType('json');
