@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QuickSpecs — Know Your Machine</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--muted:#9aa4b2;--accent:#7c3aed;--glass: rgba(255,255,255,0.03)}
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:linear-gradient(180deg,#071021 0%, #071427 60%);color:#e6eef6}
+    .wrap{max-width:980px;margin:36px auto;padding:20px}
+    header{display:flex;gap:16px;align-items:center}
+    .logo{width:62px;height:62px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#3b82f6);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:20px;color:white;box-shadow:0 6px 24px rgba(10,10,20,0.6)}
+    h1{margin:0;font-size:20px}
+    p.lead{margin:6px 0 18px;color:var(--muted)}
+
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:18px}
+    .card{background:linear-gradient(180deg,var(--card), rgba(11,18,32,0.6));padding:14px;border-radius:12px;box-shadow:0 6px 30px rgba(2,6,23,0.6);}
+    .specs{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+    .spec{padding:12px;border-radius:10px;background:var(--glass);display:flex;flex-direction:column}
+    .k{font-size:12px;color:var(--muted);margin-bottom:6px}
+    .v{font-weight:600;font-size:13px}
+    .big{grid-column:1/-1}
+
+    aside .card{position:sticky;top:20px}
+    .controls{display:flex;gap:8px;margin-top:12px}
+    button{cursor:pointer;border:0;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,0.03);color:inherit}
+    button.primary{background:linear-gradient(90deg,var(--accent),#06b6d4);color:#041022;font-weight:700}
+
+    .raw{white-space:pre-wrap;max-height:420px;overflow:auto;padding:10px;background:rgba(0,0,0,0.25);border-radius:8px}
+    footer{margin-top:18px;color:var(--muted);font-size:13px}
+    .small{font-size:12px;color:var(--muted)}
+    .hint{color:var(--muted);font-size:12px;margin-top:8px}
+
+    @media (max-width:900px){.grid{grid-template-columns:1fr}.logo{width:52px;height:52px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">QS</div>
+      <div>
+        <h1>QuickSpecs — see what your browser can see about your device</h1>
+        <p class="lead">Lightweight, privacy-friendly snapshot of your machine: CPU, RAM, display, browser, network & more.</p>
+      </div>
+    </header>
+
+    <div class="grid">
+      <main>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong>Detected specs</strong>
+            <div class="small">Auto-detect — some fields depend on browser support</div>
+          </div>
+
+          <div id="specs" class="specs" style="margin-top:12px">
+            <!-- populated by JS -->
+          </div>
+
+          <div class="hint">Tip: hit <kbd>Export JSON</kbd> to save a copy. This page does not send info anywhere — it's client-only.</div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <strong>Raw JSON</strong>
+          <div id="raw" class="raw">{}</div>
+
+          <div class="controls">
+            <button id="refresh">Refresh</button>
+            <button id="copy">Copy JSON</button>
+            <button id="export" class="primary">Export JSON</button>
+            <button id="explain">Explain fields</button>
+          </div>
+        </div>
+
+      </main>
+
+      <aside>
+        <div class="card">
+          <strong>Quick actions</strong>
+          <div style="margin-top:10px" class="small">
+            • Save this file and open in any browser. Works offline.
+            <br>• Not everything is available on all browsers (e.g., deviceMemory may be missing).
+          </div>
+
+          <div style="margin-top:12px">
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button id="showUserAgent">User agent</button>
+              <button id="showWebGL">GPU info</button>
+              <button id="showStorage">Storage estimate</button>
+              <button id="showBattery">Battery</button>
+            </div>
+          </div>
+
+          <div style="margin-top:12px">
+            <strong>Privacy</strong>
+            <p class="small">This page runs fully in your browser. It only reads values your browser exposes; it doesn't send anything to servers.</p>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <strong>About</strong>
+          <p class="small">Made for curiosity. If a value is missing, your browser restricted the API — that’s often intentional for privacy.</p>
+        </div>
+      </aside>
+    </div>
+
+    <footer>
+      <div class="small">Built with vanilla JS • Save as <code>system-specs.html</code> and open locally</div>
+    </footer>
+  </div>
+
+  <script>
+    // Utilities
+    const el = id => document.getElementById(id);
+    function safe(v){return (v===undefined||v===null||v==='')?'<span style="color:var(--muted)">— unavailable</span>':String(v)}
+
+    async function gather(){
+      const nav = navigator;
+      const screenInfo = window.screen || {};
+
+      const data = {
+        timestamp: new Date().toISOString(),
+        userAgent: nav.userAgent || null,
+        platform: nav.platform || null,
+        browserLanguages: nav.languages || [nav.language],
+        cookieEnabled: nav.cookieEnabled === undefined ? null : nav.cookieEnabled,
+        online: nav.onLine === undefined ? null : nav.onLine,
+        hardwareConcurrency: nav.hardwareConcurrency || null, // logical cores
+        deviceMemoryGB: nav.deviceMemory || null, // may be undefined
+        vendor: (nav.vendor || null),
+        product: (nav.product || null),
+        screen: {
+          width: screenInfo.width || null,
+          height: screenInfo.height || null,
+          availWidth: screenInfo.availWidth || null,
+          availHeight: screenInfo.availHeight || null,
+          colorDepth: screenInfo.colorDepth || null,
+          orientation: (screenInfo.orientation && screenInfo.orientation.type) ? screenInfo.orientation.type : (screenInfo.orientation || null)
+        },
+        viewport: {w: Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0), h: Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0)},
+        cookieAccepted: null,
+        plugins: (navigator.plugins && navigator.plugins.length)?Array.from(navigator.plugins).map(p=>p.name):null,
+        connection: (nav.connection ? {
+          effectiveType: nav.connection.effectiveType || null,
+          downlink: nav.connection.downlink || null,
+          rtt: nav.connection.rtt || null
+        } : null),
+        storageEstimate: null,
+        battery: null,
+        webgl: null
+      };
+
+      // Storage estimate
+      if(navigator.storage && navigator.storage.estimate){
+        try{ const est = await navigator.storage.estimate(); data.storageEstimate = est;}catch(e){data.storageEstimate = {error: String(e)}}
+      }
+
+      // Battery (may be unsupported)
+      if(navigator.getBattery){
+        try{ const b = await navigator.getBattery(); data.battery = {charging: b.charging, level: b.level, chargingTime: b.chargingTime, dischargingTime: b.dischargingTime}; } catch(e){data.battery = {error: String(e)}}
+      }
+
+      // WebGL renderer info
+      try{
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        if(gl){
+          const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+          const renderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : null;
+          const vendor = dbg ? gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL) : null;
+          data.webgl = {glSupported: true, renderer: renderer, vendor: vendor};
+        } else data.webgl = {glSupported:false};
+      } catch(e){data.webgl = {error: String(e)}}
+
+      return data;
+    }
+
+    function renderSpecs(obj){
+      const container = document.querySelector('#specs');
+      container.innerHTML = '';
+
+      function add(k,v,cls=''){
+        const div = document.createElement('div'); div.className = 'spec '+cls;
+        div.innerHTML = `<div class="k">${k}</div><div class="v">${v}</div>`;
+        container.appendChild(div);
+      }
+
+      add('User agent', safe(obj.userAgent),'big');
+      add('Platform', safe(obj.platform));
+      add('Browser languages', safe((obj.browserLanguages||[]).join(', ')));
+      add('Online', safe(obj.online));
+      add('Cookies enabled', safe(obj.cookieEnabled));
+      add('Logical cores', safe(obj.hardwareConcurrency));
+      add('Approx. RAM (GB)', safe(obj.deviceMemoryGB));
+      add('Screen (px)', safe(obj.screen.width + ' × ' + obj.screen.height));
+      add('Viewport (px)', safe(obj.viewport.w + ' × ' + obj.viewport.h));
+      add('Color depth', safe(obj.screen.colorDepth));
+      add('Connection', safe(obj.connection ? (obj.connection.effectiveType + ' — ' + obj.connection.downlink + 'Mbps') : 'N/A'));
+      add('WebGL supported', safe(obj.webgl && obj.webgl.glSupported));
+      add('GPU renderer', safe(obj.webgl && obj.webgl.renderer));
+      add('Storage estimate', safe(obj.storageEstimate ? (Math.round((obj.storageEstimate.quota||0)/1024/1024)+' MB quota — '+Math.round((obj.storageEstimate.usage||0)/1024/1024)+' MB used') : 'N/A'));
+      add('Battery', safe(obj.battery ? ('level: '+obj.battery.level+' charging: '+obj.battery.charging) : 'N/A'));
+
+      // Plugins (large)
+      add('Plugins', safe(obj.plugins ? obj.plugins.join(', ') : 'None or blocked'),'big');
+    }
+
+    async function refreshAll(){
+      const data = await gather();
+      el('raw').textContent = JSON.stringify(data, null, 2);
+      renderSpecs(data);
+      window._lastSpecs = data;
+    }
+
+    // Actions
+    document.addEventListener('DOMContentLoaded', ()=>{
+      refreshAll();
+
+      el('refresh').addEventListener('click', refreshAll);
+
+      el('copy').addEventListener('click', ()=>{
+        const txt = el('raw').textContent; navigator.clipboard.writeText(txt).then(()=>{
+          el('copy').textContent = 'Copied'; setTimeout(()=>el('copy').textContent='Copy JSON',1100);
+        }).catch(()=> alert('Copy failed'));
+      });
+
+      el('export').addEventListener('click', ()=>{
+        const data = window._lastSpecs || {};
+        const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='system-specs-'+(new Date().toISOString().slice(0,19)).replace(/[:T]/g,'-')+'.json'; a.click();
+      });
+
+      el('showUserAgent').addEventListener('click', ()=>{alert(navigator.userAgent)});
+
+      el('showWebGL').addEventListener('click', ()=>{
+        const w = window._lastSpecs && window._lastSpecs.webgl; alert('WebGL:\n'+(w? JSON.stringify(w,null,2) : 'no info'));
+      });
+
+      el('showStorage').addEventListener('click', ()=>{
+        if(window._lastSpecs && window._lastSpecs.storageEstimate) alert(JSON.stringify(window._lastSpecs.storageEstimate,null,2));
+        else alert('No storage estimate available');
+      });
+
+      el('showBattery').addEventListener('click', ()=>{
+        if(window._lastSpecs && window._lastSpecs.battery) alert(JSON.stringify(window._lastSpecs.battery,null,2));
+        else alert('Battery info not available on this browser');
+      });
+
+      el('explain').addEventListener('click', ()=>{
+        const msg = `Explanation (short):\n\nuserAgent: what the browser reports.\nplatform: OS hint.\nhardwareConcurrency: logical CPU cores.\ndeviceMemory: approximate RAM in GB (only in some browsers).\nWebGL renderer: best guess at GPU info (can be blocked).\nstorageEstimate: quota and usage from the Storage API.\nBattery: battery state (only supported on some browsers).\n\nMissing values are usually due to privacy restrictions. Always treat these values as "what the browser tells you".`;
+        alert(msg);
+      });
+    });
+  </script>
+</body>
+</html>
