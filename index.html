@@ -3,21 +3,80 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Unknown</title>
-  <link rel="icon" type="image/x-icon" href="Unknown.ico">
+  <title>Unkown</title>
+  <!-- Keep your favicon reference (file must exist in project root). If it's missing, add the .ico to the same folder. -->
+  <link rel="icon" type="image/x-icon" href="Unkown.ico">
+
   <style>
-    html, body { height: 100%; margin: 0; background:#0b0e13; color:#e5e7eb; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji"; overflow:hidden; }
-    #ui { position: fixed; top: 0; left: 0; right:0; display:flex; align-items:center; justify-content:space-between; padding: 10px 12px; pointer-events: none; z-index:5; }
+    /* Verbose styles for easier debugging and tweaking */
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #0b0e13;
+      color: #e5e7eb;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", Arial;
+      overflow: hidden;
+    }
+
+    /* HUD */
+    #ui {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      pointer-events: none;
+      z-index: 5;
+    }
     #hint { pointer-events: none; opacity: 0.9; }
-    #btnStart { pointer-events: auto; border:1px solid #374151; background:#111827; color:#e5e7eb; padding:8px 12px; border-radius:10px; cursor:pointer; }
-    #btnStart:hover { background:#0f172a; }
-    .crosshair { position: fixed; top: 50%; left: 50%; width: 16px; height: 16px; transform: translate(-50%, -50%); pointer-events: none; z-index:5; }
-    .crosshair::before, .crosshair::after { content: ""; position: absolute; background: #e5e7eb; }
+    #btnStart {
+      pointer-events: auto;
+      border: 1px solid #374151;
+      background: #111827;
+      color: #e5e7eb;
+      padding: 8px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    #btnStart:hover { background: #0f172a; }
+
+    /* crosshair */
+    .crosshair {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      width: 16px;
+      height: 16px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 5;
+    }
+    .crosshair::before, .crosshair::after {
+      content: "";
+      position: absolute;
+      background: #e5e7eb;
+    }
     .crosshair::before { left: 7px; top: 0; width: 2px; height: 16px; }
     .crosshair::after { top: 7px; left: 0; width: 16px; height: 2px; }
-    #debug { position: fixed; left: 10px; bottom: 10px; background: rgba(0,0,0,0.35); padding: 8px 10px; border-radius: 10px; font-size: 12px; white-space: pre; pointer-events: none; z-index:5; }
 
-    /* --- Menu Screen --- */
+    /* debug panel */
+    #debug {
+      position: fixed;
+      left: 10px;
+      bottom: 10px;
+      background: rgba(0,0,0,0.35);
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-size: 12px;
+      white-space: pre;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    /* menu */
     #menuScreen {
       position: fixed;
       inset: 0;
@@ -39,22 +98,65 @@
       color: #e5e7eb;
     }
     #menuScreen button:hover { background: rgba(31,41,55,0.9); }
+
+    /* Interact prompt & Dialogue box */
+    #interactPrompt {
+      position: fixed;
+      bottom: 18%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.6);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 18px;
+      display: none;
+      z-index: 6;
+      pointer-events: none;
+    }
+
+    #dialogueBox {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: none;
+      background: rgba(0,0,0,0.9);
+      padding: 18px 22px;
+      z-index: 7;
+      color: #e5e7eb;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+    #dialogueBox .title { font-weight: 700; margin-bottom: 8px; font-size: 18px; }
+    #dialogueBox .content { line-height: 1.4; }
   </style>
 </head>
 <body>
+
+  <!-- HUD -->
   <div id="ui">
     <div id="hint">WASD / IJKL to move · Mouse or Arrow Keys to look · Space to jump · Shift to sprint</div>
     <button id="btnStart">Click to focus mouse</button>
   </div>
+
   <div class="crosshair" aria-hidden="true"></div>
   <div id="debug"></div>
 
-  <!-- Menu Screen -->
+  <!-- Interact prompt / Dialogue -->
+  <div id="interactPrompt">Press E to Interact</div>
+
+  <div id="dialogueBox" role="dialog" aria-hidden="true">
+    <div class="title">Mr. Assassin</div>
+    <div class="content" id="dialogueText">Hello Shade.</div>
+  </div>
+
+  <!-- Menu -->
   <div id="menuScreen">
     <button id="btnResume">Continue</button>
     <button id="btnQuit">Quit</button>
   </div>
 
+  <!-- import map -->
   <script type="importmap">
     {
       "imports": {
@@ -68,7 +170,9 @@
     import * as THREE from 'three';
     import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 
-    // --- Basic Three.js setup ---
+    /* ===========================
+       Renderer / Scene / Camera
+    =========================== */
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
@@ -79,6 +183,7 @@
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
 
+    // yaw/pitch camera holder
     const yaw = new THREE.Object3D();
     const pitch = new THREE.Object3D();
     yaw.position.set(0, 1.8, 0);
@@ -86,24 +191,34 @@
     pitch.add(camera);
     scene.add(yaw);
 
-    // Lighting
+    /* ===========================
+       Lighting
+    =========================== */
     const hemi = new THREE.HemisphereLight(0xffffff, 0x88aaff, 0.4);
     scene.add(hemi);
+
     const sun = new THREE.DirectionalLight(0xffffff, 1.0);
     sun.position.set(200, 300, 150);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     scene.add(sun);
 
+    /* ===========================
+       Loaders
+    =========================== */
     const objLoader = new OBJLoader();
 
-    // --- Ground ---
+    /* ===========================
+       Ground (procedural)
+    =========================== */
     const groundSize = 512;
     const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize, 1, 1);
+
     const canvas = document.createElement('canvas');
     canvas.width = 128;
     canvas.height = 128;
     const ctx = canvas.getContext('2d');
+
     for (let y = 0; y < 128; y++) {
       for (let x = 0; x < 128; x++) {
         const base = [29, 130, 56];
@@ -115,28 +230,41 @@
         ctx.fillRect(x, y, 1, 1);
       }
     }
+
     const tex = new THREE.CanvasTexture(canvas);
     tex.magFilter = THREE.NearestFilter;
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(groundSize / 16, groundSize / 16);
+
     const groundMat = new THREE.MeshLambertMaterial({ map: tex });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
 
-    // --- Trees ---
+    /* ===========================
+       Trees
+    =========================== */
     const treeParent = new THREE.Group();
     scene.add(treeParent);
 
     function createTree() {
       const dummy = new THREE.Group();
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 3, 8), new THREE.MeshLambertMaterial({ color: 0x8b5a2b }));
+
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.3, 0.3, 3, 8),
+        new THREE.MeshLambertMaterial({ color: 0x8b5a2b })
+      );
       trunk.position.y = 1.5;
       trunk.castShadow = true;
-      const leaves = new THREE.Mesh(new THREE.SphereGeometry(1.5, 12, 12), new THREE.MeshLambertMaterial({ color: 0x2e7d32 }));
+
+      const leaves = new THREE.Mesh(
+        new THREE.SphereGeometry(1.5, 12, 12),
+        new THREE.MeshLambertMaterial({ color: 0x2e7d32 })
+      );
       leaves.position.y = 3.4;
       leaves.castShadow = true;
+
       dummy.add(trunk, leaves);
       return dummy;
     }
@@ -145,6 +273,7 @@
       const tileSize = 16;
       const step = tileSize * 2;
       const half = groundSize / 2;
+
       for (let x = -half + step/2; x < half; x += step) {
         for (let z = -half + step/2; z < half; z += step) {
           for (let i = 0; i < 2; i++) {
@@ -159,13 +288,17 @@
     }
     scatterTrees(createTree());
 
-    // --- Player ---
+    /* ===========================
+       Player
+    =========================== */
     const player = new THREE.Group();
     player.position.set(0, 0, 0);
     scene.add(player);
     player.add(yaw);
 
-    // --- Controls ---
+    /* ===========================
+       Controls
+    =========================== */
     const keys = new Set();
     window.addEventListener('keydown', (e) => { keys.add(e.key.toLowerCase()); });
     window.addEventListener('keyup',   (e) => { keys.delete(e.key.toLowerCase()); });
@@ -187,7 +320,6 @@
 
     let pointerLocked = false;
     function requestLock() { renderer.domElement.requestPointerLock(); }
-
     document.addEventListener('pointerlockchange', () => {
       pointerLocked = document.pointerLockElement === renderer.domElement;
     });
@@ -214,11 +346,13 @@
       pitch.rotation.x = Math.max(-Math.PI/2 + 0.001, Math.min(Math.PI/2 - 0.001, pitch.rotation.x));
     }
 
+    /* ===========================
+       Movement + physics
+    =========================== */
     let onGround = true;
     let vy = 0;
     const gravity = 30;
     const jumpSpeed = 10;
-
     const clock = new THREE.Clock();
 
     function move(dt) {
@@ -252,6 +386,7 @@
 
       if (onGround) vy = 0;
       vy -= gravity * dt;
+
       if ((keys.has(' ') || keys.has('space')) && onGround) {
         vy = jumpSpeed;
         onGround = false;
@@ -264,7 +399,9 @@
       if (player.position.y < 0) { player.position.y = 0; onGround = true; }
     }
 
-    // --- Menu logic ---
+    /* ===========================
+       Menu logic
+    =========================== */
     function showMenu() {
       menuScreen.style.display = "flex";
       document.exitPointerLock?.();
@@ -299,106 +436,329 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    // --- Assassin spawn ---
-    let assassin, mixer, waveClip;
+    /* ===========================
+       WAVE animation (embedded, parse-ready)
+       - This is converted from your Blockbench JSON.
+       - We parse it into THREE.AnimationClip.parse(...) so no external wave.json needed.
+    =========================== */
+
+    const waveData = {
+      name: "wave",
+      duration: 4.0833,
+      tracks: [
+        {
+          name: "ArmL.position",
+          type: "vector3",
+          times: [0.0, 0.75, 1.4167, 2.5833, 3.2083, 4.0833],
+          values: [
+            0, 0, 0,
+            7, 15, -8,
+            8.48, 16.19, -5.71,
+            7.02, 15.54, -1.71,
+            17.02, 9.54, -1.71,
+            1, 0, 1
+          ]
+        },
+        {
+          // quaternion track: x,y,z,w per key
+          name: "ArmL.quaternion",
+          type: "quaternion",
+          times: [0.0, 0.75, 1.4167, 2.0, 2.5833, 3.2083, 4.0833],
+          values: [
+            0, 0, 0, 1,
+            0, 0, -0.08716, 0.99619,
+            0, 0, -0.239, 0.971,
+            0, 0, 0.08716, 0.99619,
+            0, 0, -0.196, 0.981,
+            0, 0, -0.196, 0.981,
+            0, 0, 0, 1
+          ]
+        }
+      ]
+    };
+
+    // parse to a clip immediately
+    let embeddedWaveClip = null;
+    try {
+      embeddedWaveClip = THREE.AnimationClip.parse(waveData);
+      console.log('Embedded wave clip parsed:', embeddedWaveClip.name, 'tracks:', embeddedWaveClip.tracks.length);
+    } catch (err) {
+      console.warn('Failed to parse embedded waveData:', err);
+      embeddedWaveClip = null;
+    }
+
+    /* ===========================
+       Assassin loading + animation hookup
+    =========================== */
+
+    let assassin = null;
+    let mixer = null;
+    let preferPrimaryAction = true; // try embedded clip first; fallback if it doesn't match
+
     const texLoader = new THREE.TextureLoader();
     const assassinTexture = texLoader.load("Resources/models/characters/mr.assassin/default.png");
     assassinTexture.magFilter = THREE.NearestFilter;
     assassinTexture.minFilter = THREE.NearestFilter;
 
-    objLoader.load("Resources/models/characters/mr.assassin/default_Mr.Assassin.obj", (obj) => {
-      assassin = obj;
-      assassin.position.set(77.8, 0, -1.1);
-      assassin.rotation.y = Math.PI;
-      assassin.traverse((child) => {
-        if (child.isMesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-          child.material = new THREE.MeshLambertMaterial({ map: assassinTexture });
+    // half-extent for 3x3x3 trigger
+    const triggerHalf = 1.5;
+    let playerInWaveZone = false;
+    let dialogueOpen = false;
+
+    objLoader.load(
+      "Resources/models/characters/mr.assassin/default_Mr.Assassin.obj",
+      (obj) => {
+        assassin = obj;
+
+        // console log child names to help debugging
+        const names = [];
+        assassin.traverse((c) => {
+          if (c.name) names.push(c.name);
+        });
+        console.log('Assassin loaded; child names in hierarchy:', names);
+
+        // basic transform
+        assassin.position.set(77.8, 0, -1.1);
+        assassin.rotation.y = Math.PI;
+
+        // assign texture
+        assassin.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            child.material = new THREE.MeshLambertMaterial({ map: assassinTexture });
+          }
+        });
+
+        assassin.scale.set(1, 1, 1);
+        scene.add(assassin);
+
+        // create mixer
+        mixer = new THREE.AnimationMixer(assassin);
+        assassin.userData.mixer = mixer;
+
+        // Try to hook embedded clip as "primary"
+        if (embeddedWaveClip) {
+          try {
+            const primaryAction = mixer.clipAction(embeddedWaveClip);
+            primaryAction.setLoop(THREE.LoopOnce, 0);
+            primaryAction.clampWhenFinished = true;
+            assassin.userData.waveActionPrimary = primaryAction;
+            console.log('Primary (embedded) wave action created — Note: it will only animate if the clip track names match named children in the model (e.g. "ArmL")');
+          } catch (err) {
+            console.warn('Could not create primary wave action from embedded clip:', err);
+            assassin.userData.waveActionPrimary = null;
+          }
+        } else {
+          assassin.userData.waveActionPrimary = null;
+        }
+
+        // Create a fallback clip targeting a found arm-like child if possible
+        const armChild = findArmChild(assassin);
+        if (armChild) {
+          const fallbackClip = createFallbackWaveClip(armChild);
+          try {
+            const fallbackAction = mixer.clipAction(fallbackClip);
+            fallbackAction.setLoop(THREE.LoopOnce, 0);
+            fallbackAction.clampWhenFinished = true;
+            assassin.userData.waveActionFallback = fallbackAction;
+            console.log(`Fallback wave action created targeting "${armChild}" (will work even if primary fails).`);
+          } catch (err) {
+            console.warn('Failed to create fallback action:', err);
+            assassin.userData.waveActionFallback = null;
+          }
+        } else {
+          assassin.userData.waveActionFallback = null;
+          console.log('No arm-like child found for fallback animation. You can check child names in console above to verify model structure.');
+        }
+      },
+      undefined,
+      (err) => {
+        console.warn("Failed to load assassin OBJ:", err);
+      }
+    );
+
+    // helper: try to pick a child name that looks like an arm
+    function findArmChild(root) {
+      const candidates = [];
+      root.traverse((c) => {
+        if (c.isMesh || c.isObject3D) {
+          const n = (c.name || '').toLowerCase();
+          if (!n) return;
+          // preference for left arm naming patterns
+          if (n.includes('arml') || n.includes('arm_l') || n.includes('leftarm') || (n.includes('arm') && n.includes('left'))) {
+            candidates.push(c.name);
+          } else if (n.includes('arm')) {
+            candidates.push(c.name);
+          }
         }
       });
-      assassin.scale.set(1, 1, 1);
-      scene.add(assassin);
-
-      // Animation setup
-      mixer = new THREE.AnimationMixer(assassin);
-      const waveData = {
-        name: "wave",
-        duration: 4.0833,
-        tracks: [
-          {
-            name: "ArmL.position",
-            type: "vector3",
-            times: [0.0, 0.75, 1.4167, 2.5833, 3.2083, 4.0833],
-            values: [
-              0, 0, 0,
-              7, 15, -8,
-              8.48, 16.19, -5.71,
-              7.02, 15.54, -1.71,
-              17.02, 9.54, -1.71,
-              1, 0, 1
-            ]
-          },
-          {
-            name: "ArmL.quaternion",
-            type: "quaternion",
-            times: [0.0, 0.75, 1.4167, 2.0, 2.5833, 3.2083, 4.0833],
-            values: [
-              0, 0, 0, 1,
-              0, 0, -0.08716, 0.99619,
-              0, 0, -0.239, 0.971,
-              0, 0, 0.08716, 0.99619,
-              0, 0, -0.196, 0.981,
-              0, 0, -0.196, 0.981,
-              0, 0, 0, 1
-            ]
-          }
-        ]
-      };
-      waveClip = THREE.AnimationClip.parse(waveData);
-    });
-
-    function playWave() {
-      if (!mixer || !waveClip) return;
-      const action = mixer.clipAction(waveClip);
-      action.reset().play();
+      if (candidates.length > 0) {
+        // prefer exact left-style names if available
+        return candidates[0];
+      }
+      return null;
     }
 
-    // --- Tick loop ---
+    // helper: build a fallback clip that rotates a named child on z axis (approximate Blockbench wave)
+    function createFallbackWaveClip(childName) {
+      const times = [0.0, 0.75, 1.4167, 2.0, 2.5833, 3.2083, 4.0833];
+      // degrees used in your original file for Z rotation (approx)
+      const degs = [0, -10, -27.5, 10, -22.5, -22.5, 0];
+
+      // create quaternion array (x,y,z,w) for each time
+      const quatValues = [];
+      for (let i = 0; i < degs.length; i++) {
+        const zRad = THREE.MathUtils.degToRad(degs[i]);
+        const e = new THREE.Euler(0, 0, zRad, 'XYZ'); // original had [0,0,angle]
+        const q = new THREE.Quaternion().setFromEuler(e);
+        quatValues.push(q.x, q.y, q.z, q.w);
+      }
+
+      // Build track that targets child's quaternion (relative to assassin root)
+      const trackName = `${childName}.quaternion`;
+      const track = new THREE.QuaternionKeyframeTrack(trackName, times, quatValues);
+
+      const clip = new THREE.AnimationClip('wave_fallback', 4.0833, [track]);
+      return clip;
+    }
+
+    // function to request play of best available action
+    function playWaveAction() {
+      if (!assassin || !assassin.userData) return;
+      // priority: primary (embedded) -> fallback
+      const primary = assassin.userData.waveActionPrimary;
+      const fallback = assassin.userData.waveActionFallback;
+
+      if (primary) {
+        try {
+          primary.reset();
+          primary.play();
+          console.log('Playing primary embedded wave action.');
+          return;
+        } catch (err) {
+          console.warn('Primary action failed to play, falling back:', err);
+        }
+      }
+
+      if (fallback) {
+        try {
+          fallback.reset();
+          fallback.play();
+          console.log('Playing fallback wave action.');
+          return;
+        } catch (err) {
+          console.warn('Fallback action failed to play:', err);
+        }
+      }
+
+      console.log('No wave action available (primary/fallback missing). Check console child names or clip tracks.');
+    }
+
+    /* ===========================
+       Interaction & trigger
+    =========================== */
+    const interactPromptEl = document.getElementById('interactPrompt');
+    const dialogueBoxEl = document.getElementById('dialogueBox');
+    const dialogueTextEl = document.getElementById('dialogueText');
+
+    function checkProximityAndTrigger() {
+      if (!assassin) {
+        interactPromptEl.style.display = 'none';
+        return;
+      }
+
+      const aPos = new THREE.Vector3();
+      const pPos = new THREE.Vector3();
+      assassin.getWorldPosition(aPos);
+      player.getWorldPosition(pPos);
+
+      // axis aligned cube check (3x3x3)
+      const inside =
+        Math.abs(pPos.x - aPos.x) <= triggerHalf &&
+        Math.abs(pPos.y - aPos.y) <= triggerHalf &&
+        Math.abs(pPos.z - aPos.z) <= triggerHalf;
+
+      // show/hide prompt
+      if (inside && !dialogueOpen) {
+        interactPromptEl.style.display = 'block';
+      } else {
+        interactPromptEl.style.display = 'none';
+      }
+
+      // wave trigger logic: play once on enter, reset on leave so re-enter replays
+      if (inside && !playerInWaveZone) {
+        playerInWaveZone = true;
+        playWaveAction();
+      } else if (!inside && playerInWaveZone) {
+        playerInWaveZone = false;
+        // if dialog open, close it on leave
+        if (dialogueOpen) {
+          dialogueBoxEl.style.display = 'none';
+          dialogueOpen = false;
+        }
+      }
+    }
+
+    // Interaction keys
+    document.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      if (k === 'e') {
+        if (interactPromptEl.style.display === 'block' && !dialogueOpen) {
+          dialogueBoxEl.style.display = 'block';
+          dialogueOpen = true;
+        }
+      }
+      if (e.key === 'Escape' && dialogueOpen) {
+        dialogueBoxEl.style.display = 'none';
+        dialogueOpen = false;
+      }
+    });
+
+    /* ===========================
+       Assassin lookAt helper
+    =========================== */
+    function updateAssassinLook() {
+      if (assassin) assassin.lookAt(player.position);
+    }
+
+    /* ===========================
+       Main tick loop
+    =========================== */
     function tick() {
       const dt = Math.min(0.05, clock.getDelta());
+
       if (!menuVisible) {
         updateArrowLook(dt);
         move(dt);
       }
 
+      // update mixer
       if (mixer) mixer.update(dt);
 
-      if (assassin) {
-        // Assassin looks at player
-        assassin.lookAt(player.position);
+      // look and triggers
+      updateAssassinLook();
+      checkProximityAndTrigger();
 
-        // Distance check (3x3x3 radius)
-        const distance = player.position.distanceTo(assassin.position);
-        if (distance < 3) {
-          if (!assassin.userData.hasWaved) {
-            playWave();
-            assassin.userData.hasWaved = true;
-          }
-        } else {
-          assassin.userData.hasWaved = false;
-        }
-      }
-
+      // keep sun follow
       sun.position.set(player.position.x + 200, 300, player.position.z + 150);
       sun.target?.position.copy(player.position);
+
+      // render
       renderer.render(scene, camera);
+
+      // debug text
       debug.textContent =
         `pos: ${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}, ${player.position.z.toFixed(1)}\n` +
-        `yaw: ${(THREE.MathUtils.radToDeg(yaw.rotation.y)%360).toFixed(1)}°  pitch: ${(THREE.MathUtils.radToDeg(pitch.rotation.x)).toFixed(1)}°`;
+        `yaw: ${(THREE.MathUtils.radToDeg(yaw.rotation.y) % 360).toFixed(1)}°  pitch: ${(THREE.MathUtils.radToDeg(pitch.rotation.x)).toFixed(1)}°\n` +
+        `inWaveZone: ${playerInWaveZone ? 'YES' : 'NO'}  dialogue: ${dialogueOpen ? 'OPEN' : 'CLOSED'}`;
+
       requestAnimationFrame(tick);
     }
     tick();
+
+    console.log('Scene initialized. If wave does not visually animate, check the list of child names above and ensure the clip tracks target matching names (e.g. "ArmL").');
+
   </script>
 </body>
 </html>
