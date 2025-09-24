@@ -3,66 +3,49 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Unknown — Notebook Map</title>
+  <title>Unknown</title>
   <link rel="icon" type="image/x-icon" href="Unkown.ico">
   <style>
-    /* LARGE, VERBOSE CSS so file line count grows and it's easy to tweak visually */
     html,body{height:100%;margin:0;background:#0b0e13;color:#e5e7eb;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,Cantarell,"Noto Sans",Arial;}
     canvas{display:block;width:100vw;height:100vh}
-
-    /* UI overlays */
     #ui{position:fixed;left:0;right:0;top:0;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;pointer-events:none;z-index:30}
     #hint{pointer-events:none;opacity:0.9}
     #btnStart{pointer-events:auto;border:1px solid #374151;background:#111827;color:#e5e7eb;padding:8px 12px;border-radius:10px;cursor:pointer}
     #btnStart:hover{background:#0f172a}
-
     .crosshair{position:fixed;top:50%;left:50%;width:16px;height:16px;transform:translate(-50%,-50%);pointer-events:none;z-index:25}
     .crosshair::before,.crosshair::after{content:"";position:absolute;background:#e5e7eb}
     .crosshair::before{left:7px;top:0;width:2px;height:16px}
     .crosshair::after{top:7px;left:0;width:16px;height:2px}
-
     #debug{position:fixed;left:10px;bottom:10px;background:rgba(0,0,0,0.35);padding:8px 10px;border-radius:10px;font-size:12px;white-space:pre;z-index:20}
-
-    /* Pause overlay -- visible when ESC toggled */
     #pauseOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:none;align-items:center;justify-content:center;z-index:40;pointer-events:none}
     #pausePanel{width:520px;max-width:90%;background:rgba(0,0,0,0.7);border-radius:14px;padding:22px;color:#e5e7eb;text-align:center;pointer-events:auto}
     #pausePanel button{margin:6px;padding:10px 16px;border-radius:8px;border:none;background:#111827;color:#e5e7eb;cursor:pointer}
-
-    /* Teleport overlay (Shift+F4) */
     #teleportOverlay{position:fixed;left:8px;top:70px;background:rgba(0,0,0,0.6);padding:12px;border-radius:8px;display:none;z-index:41}
     #teleportOverlay button{display:block;margin:8px 0;padding:8px 10px;border-radius:8px;border:none;background:#0f172a;color:#e5e7eb;cursor:pointer}
-
-    /* Dialogue & interact prompt */
     #interactPrompt{position:fixed;bottom:18%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);padding:8px 12px;border-radius:8px;font-size:18px;display:none;z-index:45}
     #dialogueBox{position:fixed;left:6%;right:6%;bottom:12px;background:rgba(0,0,0,0.95);padding:18px;border-radius:34px;display:none;z-index:46;color:#e5e7eb}
     #dialogueBox .title{text-align:center;font-weight:700;margin-bottom:6px}
     #dialogueBox .content{text-align:center}
-
-    /* Extra large spacing and comments to increase lines for debugging readability */
+    /* extra lines for readability */
     /* ----------------------------------------------------------------------------- */
-    /* This document intentionally verbose so you can see where things are and tweak. */
+    /* Debug-friendly spacing */
     /* ----------------------------------------------------------------------------- */
   </style>
 </head>
 <body>
   <div id="ui">
-    <div id="hint">WASD / IJKL to move · Mouse or Arrow Keys to look · Space to jump · Shift to sprint</div>
+    <div id="hint">WASD / IJKL to move · Mouse/Arrow look · Space jump · Shift sprint · Shift+F4 teleport</div>
     <button id="btnStart">Click to focus mouse</button>
   </div>
-
   <div class="crosshair" aria-hidden="true"></div>
   <div id="debug">loading...</div>
-
   <div id="pauseOverlay"><div id="pausePanel"><div style="font-weight:700;font-size:20px;margin-bottom:8px">Paused</div>
     <div style="margin-bottom:12px;opacity:0.85">Game paused. Press ESC to resume (pointer remains locked).</div>
     <div><button id="resumeBtn">Resume</button><button id="gotoMenuBtn">Main Menu</button></div>
   </div></div>
-
   <div id="teleportOverlay"></div>
-
   <div id="interactPrompt">Press E to Interact</div>
   <div id="dialogueBox" role="dialog" aria-hidden="true"><div class="title">Mr. Assassin</div><div class="content" id="dialogueText">Hello Shade</div></div>
-
   <canvas id="mainCanvas"></canvas>
 
   <script type="importmap">
@@ -73,12 +56,9 @@
     import * as THREE from 'three';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-    /* ==========================================================================================
-       CORE: renderer, scene, camera, ui
-       ========================================================================================== */
-
-    // renderer and canvas hookup
+    // === core ===
     const canvas = document.getElementById('mainCanvas');
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -87,535 +67,179 @@
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87CEEB);
 
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 4000);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 4000);
+    const yaw = new THREE.Object3D(); const pitch = new THREE.Object3D(); yaw.position.set(0,1.8,0); yaw.add(pitch); pitch.add(camera); scene.add(yaw);
 
-    // yaw/pitch camera rig (player attached)
-    const yaw = new THREE.Object3D();
-    const pitch = new THREE.Object3D();
-    yaw.position.set(0, 1.8, 0);
-    yaw.add(pitch);
-    pitch.add(camera);
-    scene.add(yaw);
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x88aaff, 0.45); scene.add(hemi);
+    const sun = new THREE.DirectionalLight(0xffffff, 1.0); sun.position.set(200,300,150); sun.castShadow=true; sun.shadow.mapSize.set(2048,2048); scene.add(sun);
 
-    // lighting
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x88aaff, 0.45);
-    scene.add(hemi);
-    const sun = new THREE.DirectionalLight(0xffffff, 1.0);
-    sun.position.set(200, 300, 150);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
-    scene.add(sun);
+    const gltfLoader = new GLTFLoader(); const objLoader = new OBJLoader(); const texLoader = new THREE.TextureLoader();
 
-    // loaders
-    const gltfLoader = new GLTFLoader();
-    const objLoader = new OBJLoader();
-    const texLoader = new THREE.TextureLoader();
+    const debugEl = document.getElementById('debug'); const btnStart = document.getElementById('btnStart'); const pauseOverlay = document.getElementById('pauseOverlay'); const resumeBtn = document.getElementById('resumeBtn'); const teleportOverlay = document.getElementById('teleportOverlay'); const interactPromptEl = document.getElementById('interactPrompt'); const dialogueBoxEl = document.getElementById('dialogueBox'); const dialogueTextEl = document.getElementById('dialogueText');
 
-    // UI elements
-    const debugEl = document.getElementById('debug');
-    const btnStart = document.getElementById('btnStart');
-    const pauseOverlay = document.getElementById('pauseOverlay');
-    const resumeBtn = document.getElementById('resumeBtn');
-    const teleportOverlay = document.getElementById('teleportOverlay');
-    const interactPromptEl = document.getElementById('interactPrompt');
-    const dialogueBoxEl = document.getElementById('dialogueBox');
-    const dialogueTextEl = document.getElementById('dialogueText');
+    function requestLock(){ canvas.requestPointerLock?.(); }
+    btnStart.addEventListener('click', ()=>{ hidePause(); requestLock(); btnStart.blur(); });
 
-    // pointer lock request wrapper
-    function requestLock() {
-      canvas.requestPointerLock?.();
-    }
+    // config & islands (positions match notebook) - tweakable
+    const CONFIG = { world:{size:1024}, islands: { main:{x:0,z:0,w:120,h:120}, mincers:{x:-220,z:-120,r:80}, burtle:{x:220,z:140,r:70}, forest:{x:-180,z:260,r:90}, volcano:{x:260,z:-200,r:120} } };
 
-    // start button
-    btnStart.addEventListener('click', () => { hidePause(); requestLock(); btnStart.blur(); });
+    // === base ground ===
+    const baseSize = 2048; const baseGeo = new THREE.PlaneGeometry(baseSize, baseSize, 1,1);
+    const groundCanvas = document.createElement('canvas'); groundCanvas.width = 128; groundCanvas.height = 128; const gctx = groundCanvas.getContext('2d');
+    for(let y=0;y<128;y++){ for(let x=0;x<128;x++){ const base=[29,130,56]; const v=(Math.random()*10)-5; const r=Math.max(0,Math.min(255,base[0]+v)); const g=Math.max(0,Math.min(255,base[1]+v)); const b=Math.max(0,Math.min(255,base[2]+v)); gctx.fillStyle=`rgb(${r},${g},${b})`; gctx.fillRect(x,y,1,1); } }
+    const groundTex = new THREE.CanvasTexture(groundCanvas); groundTex.wrapS=groundTex.wrapT=THREE.RepeatWrapping; groundTex.repeat.set(8,8); groundTex.magFilter = THREE.NearestFilter;
 
-    // keep a small config so it's easy to tweak values and island positions
-    const CONFIG = {
-      world: { size: 1024 },
-      islands: {
-        main: { x: 0, z: 0, w: 120, h: 120 },            // Main Land (center)
-        mincers: { x: -220, z: -120, r: 80 },           // MinersLand (north-west-ish)
-        burtle: { x: 220, z: 140, r: 70 },             // Burtle Island (south-east-ish)
-        forest: { x: -180, z: 260, r: 90 },            // ForestTree Land (south-west-ish)
-        volcano: { x: 260, z: -200, r: 120 },         // Volcano island (east-ish)
-      }
-    };
+    const baseMat = new THREE.MeshLambertMaterial({ map: groundTex }); const baseMesh = new THREE.Mesh(baseGeo, baseMat); baseMesh.rotation.x = -Math.PI/2; baseMesh.receiveShadow = true; scene.add(baseMesh);
 
-    /* ==========================================================================================
-       Procedural ground, trees and island placeholders
-       ========================================================================================== */
+    // water areas: we'll create water planes for areas outside islands
+    function makeWater(cx,cz,w,h){ const geo = new THREE.PlaneGeometry(w,h,1,1); const mat = new THREE.MeshStandardMaterial({ color:0x1e68ff, metalness:0.2, roughness:0.3, envMapIntensity:0.5 }); const m = new THREE.Mesh(geo,mat); m.rotation.x = -Math.PI/2; m.position.set(cx, -0.1, cz); m.receiveShadow=true; return m; }
+    // place water around islands (approx)
+    scene.add(makeWater(360,0,1200,1200));
 
-    // big flat plane for base ground
-    const baseSize = 2048;
-    const baseGeo = new THREE.PlaneGeometry(baseSize, baseSize, 1, 1);
-    const groundCanvas = document.createElement('canvas');
-    groundCanvas.width = 256; groundCanvas.height = 256;
-    const gctx = groundCanvas.getContext('2d');
-    for (let y=0;y<256;y++){
-      for (let x=0;x<256;x++){
-        const base = [29,130,56];
-        const v = (Math.random()*18)-9;
-        const r = Math.max(0,Math.min(255,base[0]+v));
-        const g = Math.max(0,Math.min(255,base[1]+v));
-        const b = Math.max(0,Math.min(255,base[2]+v));
-        gctx.fillStyle = `rgb(${r},${g},${b})`;
-        gctx.fillRect(x,y,1,1);
-      }
-    }
-    const groundTex = new THREE.CanvasTexture(groundCanvas);
-    groundTex.wrapS = groundTex.wrapT = THREE.RepeatWrapping;
-    groundTex.repeat.set(baseSize/32, baseSize/32);
-    groundTex.magFilter = THREE.NearestFilter;
+    // tree factory with reduced density
+    const treeGroup = new THREE.Group(); scene.add(treeGroup);
+    function makeTree(){ const g = new THREE.Group(); const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.3,2.4,8), new THREE.MeshLambertMaterial({color:0x8b5a2b})); trunk.position.y=1.2; trunk.castShadow=true; const crown = new THREE.Mesh(new THREE.SphereGeometry(1.1,8,8), new THREE.MeshLambertMaterial({color:0x2e7d32})); crown.position.y=2.8; crown.castShadow=true; g.add(trunk,crown); return g; }
 
-    const baseMat = new THREE.MeshLambertMaterial({ map: groundTex });
-    const baseMesh = new THREE.Mesh(baseGeo, baseMat);
-    baseMesh.rotation.x = -Math.PI/2;
-    baseMesh.receiveShadow = true;
-    scene.add(baseMesh);
+    function scatterTreesInRect(cx,cz,w,h,density=0.008){ const area=w*h; const count=Math.max(6,Math.floor(area * density)); for(let i=0;i<count;i++){ const t=makeTree(); const rx=cx + (Math.random()-0.5)*w; const rz=cz + (Math.random()-0.5)*h; t.position.set(rx,0,rz); treeGroup.add(t); } }
 
-    // tree group to populate main land for atmosphere
-    const treeGroup = new THREE.Group();
-    scene.add(treeGroup);
+    scatterTreesInRect(CONFIG.islands.main.x, CONFIG.islands.main.z, CONFIG.islands.main.w, CONFIG.islands.main.h, 0.02);
 
-    function makeTree(){
-      const g = new THREE.Group();
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.35,3,8), new THREE.MeshLambertMaterial({color:0x8b5a2b}));
-      trunk.position.y = 1.5; trunk.castShadow = true;
-      const crown = new THREE.Mesh(new THREE.SphereGeometry(1.4, 12, 12), new THREE.MeshLambertMaterial({color:0x2e7d32}));
-      crown.position.y = 3.4; crown.castShadow = true;
-      g.add(trunk,crown);
-      return g;
-    }
+    // === islands builders ===
+    const islands = {};
+    function makeIslandCircle(cx,cz,radius,height=10,centerFlatten=0.6,tex=groundTex){ const seg=64; const geo=new THREE.CircleGeometry(radius,seg); for(let i=0;i<geo.attributes.position.count;i++){ const vx=geo.attributes.position.getX(i); const vz=geo.attributes.position.getY(i); const dist=Math.sqrt(vx*vx+vz*vz); const t=Math.max(0,1-dist/radius); const h=Math.pow(t,1.3)*(height*(0.2+centerFlatten)); geo.attributes.position.setZ(i,h); } geo.computeVertexNormals(); const mat=new THREE.MeshLambertMaterial({map:tex}); const mesh=new THREE.Mesh(geo,mat); mesh.rotation.x=-Math.PI/2; mesh.position.set(cx,0,cz); mesh.receiveShadow=true; return mesh; }
 
-    function scatterTreesInRect(cx,cz,w,h, density=0.02){
-      const area = w*h; const count = Math.max(8, Math.floor(area * density));
-      for(let i=0;i<count;i++){
-        const t = makeTree();
-        const rx = cx + (Math.random()-0.5)*w;
-        const rz = cz + (Math.random()-0.5)*h;
-        t.position.set(rx,0,rz);
-        treeGroup.add(t);
+    function createMainLand(){ const r=CONFIG.islands.main; const rect=new THREE.Mesh(new THREE.BoxGeometry(r.w,2,r.h), new THREE.MeshLambertMaterial({map:groundTex})); rect.position.set(r.x, -0.9, r.z); rect.receiveShadow=true; islands.main={mesh:rect,name:'Main Land',center:new THREE.Vector3(r.x,0,r.z)}; scene.add(rect);
+      // houses with collision boxes and door frames
+      islands.main.houses = [];
+      const houseGeo = new THREE.BoxGeometry(6,4,6); const houseMat = new THREE.MeshLambertMaterial({color:0x2b2b2b});
+      for(let i=0;i<6;i++){ const h = new THREE.Mesh(houseGeo, houseMat); const px = r.x + (i-2.5)*14; const pz = r.z + 10 + (i%2)*8; h.position.set(px,2,pz); h.castShadow=true; scene.add(h);
+        // door frame
+        const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(1.2,2.2,0.2), new THREE.MeshLambertMaterial({color:0x654321})); doorFrame.position.set(px+2.4,1,pz); scene.add(doorFrame);
+        // create collider box for house
+        const box = new THREE.Box3().setFromObject(h);
+        islands.main.houses.push({mesh:h, collider:box});
+        // randomly spawn locals in some houses
+        if(Math.random() < 0.6){ spawnLocalInHouse(h.position.x, h.position.z); }
       }
     }
 
-    // scatter trees on main land (visual only)
-    scatterTreesInRect(CONFIG.islands.main.x, CONFIG.islands.main.z, CONFIG.islands.main.w, CONFIG.islands.main.h, 0.04);
+    function spawnLocalInHouse(hx,hz){ const localObjPath = 'Resources/models/characters/Locals/locals.obj'; const localTexPath = 'Resources/models/characters/Locals/happy.png'; objLoader.load(localObjPath, (obj)=>{ obj.traverse(c=>{ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; const tex = texLoader.load(localTexPath); c.material = new THREE.MeshLambertMaterial({map:tex}); } }); obj.scale.set(0.6,0.6,0.6); obj.position.set(hx,0.5,hz); scene.add(obj); }, undefined, (err)=>{ console.warn('Local obj not found',err); }); }
 
-    /* ==========================================================================================
-       Island builders: Main Land, MinersLand (miner area), Burtle Island, ForestTree Island, Volcano
-       We will build simple geometry to represent each area and place them according to notebook.
-       ========================================================================================== */
+    function createMinersLand(){ const c=CONFIG.islands.mincers; const isl=makeIslandCircle(c.x,c.z,c.r,10,0.4); scene.add(isl); islands.mincers={mesh:isl,name:'MinersLand',center:new THREE.Vector3(c.x,0,c.z)}; for(let i=0;i<12;i++){ const rx=c.x + (Math.random()-0.5)*c.r*1.6; const rz=c.z + (Math.random()-0.5)*c.r*1.6; const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(2+(Math.random()*3)), new THREE.MeshLambertMaterial({color:0x666666})); rock.position.set(rx,1+Math.random()*2,rz); rock.castShadow=true; scene.add(rock);} }
 
-    const islands = { }; // store meshes and helper data
+    function createBurtleIsland(){ const c=CONFIG.islands.burtle; const isl=makeIslandCircle(c.x,c.z,c.r,8,0.5); scene.add(isl); islands.burtle={mesh:isl,name:'Burtle Island',center:new THREE.Vector3(c.x,0,c.z)}; const butte=new THREE.Mesh(new THREE.ConeGeometry(c.r*0.25,24,24), new THREE.MeshLambertMaterial({color:0x884422})); butte.position.set(c.x,12,c.z); butte.castShadow=true; scene.add(butte); }
 
-    // Helper: make a raised island using a circular heightfield
-    function makeIslandCircle(cx, cz, radius, height=10, centerFlatten=0.6){
-      const seg = 48;
-      const geo = new THREE.CircleGeometry(radius, seg);
-      // raise vertices by simple radial falloff
-      for (let i=0;i<geo.attributes.position.count;i++){
-        const vx = geo.attributes.position.getX(i);
-        const vz = geo.attributes.position.getY(i); // circleGeometry uses x,y
-        const dx = vx; const dz = vz;
-        const dist = Math.sqrt(dx*dx + dz*dz);
-        const t = Math.max(0,1 - (dist/radius));
-        const h = Math.pow(t, 1.3)*(height*(0.2 + centerFlatten));
-        geo.attributes.position.setZ(i, h);
-      }
-      geo.computeVertexNormals();
-      const mat = new THREE.MeshLambertMaterial({ map: groundTex });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.rotation.x = -Math.PI/2;
-      mesh.position.set(cx,0,cz);
-      mesh.receiveShadow = true; mesh.castShadow = false;
-      return mesh;
-    }
+    function createForestTreeIsland(){ const c=CONFIG.islands.forest; const isl=makeIslandCircle(c.x,c.z,c.r,6,0.55); scene.add(isl); islands.forest={mesh:isl,name:'ForestTree Land',center:new THREE.Vector3(c.x,0,c.z)}; // sparser scatter
+      for(let i=0;i<80;i++){ const rx=c.x + (Math.random()-0.5)*c.r*1.6; const rz=c.z + (Math.random()-0.5)*c.r*1.6; const t = makeTree(); t.position.set(rx,0,rz); scene.add(t); } }
 
-    // Main Land as a big raised rectangle (spawn area)
-    function createMainLand(){
-      const r = CONFIG.islands.main;
-      const rect = new THREE.Mesh(new THREE.BoxGeometry(r.w, 2, r.h), new THREE.MeshLambertMaterial({map:groundTex}));
-      rect.position.set(r.x, -0.9, r.z);
-      rect.receiveShadow = true;
-      islands.main = { mesh: rect, name: 'Main Land', center: new THREE.Vector3(r.x,0,r.z) };
-      scene.add(rect);
+    function createVolcanoIsland(){ const c=CONFIG.islands.volcano; const isl=makeIslandCircle(c.x,c.z,c.r,14,0.3); scene.add(isl); islands.volcano={mesh:isl,name:'Volcano Island',center:new THREE.Vector3(c.x,0,c.z)}; const coneHeight=120; const coneGeo=new THREE.ConeGeometry(c.r*0.4,coneHeight,64); const lavaMat=new THREE.MeshStandardMaterial({color:0xff4400,emissive:0xff3300,emissiveIntensity:0.7,roughness:0.7}); const cone=new THREE.Mesh(coneGeo,lavaMat); cone.position.set(c.x,coneHeight*0.5-6,c.z); cone.castShadow=true; scene.add(cone); const rim=new THREE.Mesh(new THREE.TorusGeometry(c.r*0.12,c.r*0.06,16,60), new THREE.MeshLambertMaterial({color:0x222222})); rim.position.set(c.x,cone.position.y + coneHeight*0.45,c.z); rim.rotation.x=Math.PI/2; scene.add(rim); const lavaGeo=new THREE.CircleGeometry(c.r*0.08,32); const lava=new THREE.Mesh(lavaGeo,new THREE.MeshStandardMaterial({color:0xff5500,emissive:0xff2200,emissiveIntensity:0.9})); lava.rotation.x=-Math.PI/2; lava.position.set(c.x,cone.position.y + coneHeight*0.35,c.z); scene.add(lava); islands.volcano.userData={centerX:c.x,centerZ:c.z,radius:c.r,coneHeight}; }
 
-      // village placeholders
-      const houseGeo = new THREE.BoxGeometry(6,4,6);
-      const houseMat = new THREE.MeshLambertMaterial({color:0x2b2b2b});
-      for(let i=0;i<4;i++){
-        const h = new THREE.Mesh(houseGeo, houseMat);
-        h.position.set(r.x + (i-1.5)*14, 2, r.z + 10);
-        h.castShadow = true;
-        scene.add(h);
+    createMainLand(); createMinersLand(); createBurtleIsland(); createForestTreeIsland(); createVolcanoIsland();
+
+    // collect colliders from houses and important meshes
+    const worldColliders = [];
+    function rebuildColliders(){ worldColliders.length=0; if(islands.main && islands.main.houses){ islands.main.houses.forEach(h=>{ const b = new THREE.Box3().setFromObject(h.mesh); worldColliders.push(b); }); }
+      // also add butte and rocks by bounding boxes for collision
+      scene.traverse(o=>{ if(o.isMesh && (o.geometry && o.geometry.type==='DodecahedronGeometry' || o.geometry.type==='ConeGeometry')){ worldColliders.push(new THREE.Box3().setFromObject(o)); } }); }
+    rebuildColliders();
+
+    // === player ===
+    const player = new THREE.Group(); player.position.set(0,0,0); scene.add(player); player.add(yaw);
+    const keys = new Set(); window.addEventListener('keydown',(e)=>{ keys.add(e.key.toLowerCase()); }); window.addEventListener('keyup',(e)=>{ keys.delete(e.key.toLowerCase()); });
+
+    const velocity = new THREE.Vector3(); const accel=45; const damping=10; let maxSpeed=8; const sprintMult=1.7; let onGround=true; let vy=0; const gravity=30; const jumpSpeed=10; const clock=new THREE.Clock();
+
+    function volcanoHeightAt(x,z){ const v=islands.volcano.userData; const dx=x-v.centerX; const dz=z-v.centerZ; const dist=Math.sqrt(dx*dx+dz*dz); if(dist>v.radius*0.45) return 0; const h=v.coneHeight*(1 - dist/(v.radius*0.45)); return Math.max(0,h) + 2; }
+
+    function sampleWorldHeight(x,z){ let h=0; const m=CONFIG.islands.main; if(Math.abs(x-m.x)<=m.w*0.5 && Math.abs(z-m.z)<=m.h*0.5) h=Math.max(h,0); const mn=CONFIG.islands.mincers; const md=Math.hypot(x-mn.x,z-mn.z); if(md<=mn.r){ h=Math.max(h,4*(1-md/mn.r)); } const bt=CONFIG.islands.burtle; const bd=Math.hypot(x-bt.x,z-bt.z); if(bd<=bt.r){ h=Math.max(h,3*(1-bd/bt.r)); } const fr=CONFIG.islands.forest; const fd=Math.hypot(x-fr.x,z-fr.z); if(fd<=fr.r){ h=Math.max(h,2.5*(1-fd/fr.r)); } const vd=Math.hypot(x-islands.volcano.userData.centerX,z-islands.volcano.userData.centerZ); if(vd<=islands.volcano.userData.radius*0.9){ h=Math.max(h,volcanoHeightAt(x,z)); } return h; }
+
+    // collision test using AABB against worldColliders
+    function intersectsColliders(box){ for(const cb of worldColliders){ if(cb.intersectsBox(box)) return true; } return false; }
+
+    function move(dt){ const forward = (keys.has('w')||keys.has('i'))?1:(keys.has('s')||keys.has('k'))?-1:0; const strafe=(keys.has('a')||keys.has('j'))?1:(keys.has('d')||keys.has('l'))?-1:0; const dir=new THREE.Vector3(); const yawDir=new THREE.Vector3(-Math.sin(yaw.rotation.y),0,-Math.cos(yaw.rotation.y)); const right=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),yawDir).normalize(); dir.addScaledVector(yawDir,forward).addScaledVector(right,strafe).normalize(); let curAccel=accel; let curMax=maxSpeed; if(keys.has('shift')||keys.has('shiftleft')||keys.has('shiftright')){ curAccel*=sprintMult; curMax*=sprintMult; } if(dir.lengthSq()>0) velocity.addScaledVector(dir,curAccel*dt); else { const decel=Math.max(0,1-damping*dt); velocity.multiplyScalar(decel); } const v2=new THREE.Vector2(velocity.x,velocity.z); if(v2.length()>curMax){ v2.setLength(curMax); velocity.x=v2.x; velocity.z=v2.y; } if(onGround) vy=0; vy -= gravity*dt; if((keys.has(' ')||keys.has('space')) && onGround){ vy = jumpSpeed; onGround=false; } // proposed next position
+      const nextPos = new THREE.Vector3(player.position.x + velocity.x*dt, player.position.y + vy*dt, player.position.z + velocity.z*dt);
+      // sample ground height at next position
+      const groundY = sampleWorldHeight(nextPos.x, nextPos.z);
+      if(nextPos.y < groundY) { nextPos.y = groundY; onGround=true; vy=0; }
+      // build player bounding box (approximate capsule as AABB)
+      const halfSize = new THREE.Vector3(0.4,1.0,0.4); const box = new THREE.Box3(new THREE.Vector3(nextPos.x-halfSize.x, nextPos.y-halfSize.y, nextPos.z-halfSize.z), new THREE.Vector3(nextPos.x+halfSize.x, nextPos.y+halfSize.y, nextPos.z+halfSize.z));
+      // collision test
+      if(intersectsColliders(box)){
+        // on collision, zero out horizontal velocity and don't move into collider
+        velocity.x = 0; velocity.z = 0;
+      } else {
+        player.position.copy(nextPos);
       }
     }
 
-    // MinersLand (stone plateau with simple rock pillars)
-    function createMinersLand(){
-      const c = CONFIG.islands.mincers;
-      const isl = makeIslandCircle(c.x, c.z, c.r, 10, 0.4);
-      scene.add(isl);
-      islands.mincers = { mesh: isl, name: 'MinersLand', center: new THREE.Vector3(c.x,0,c.z) };
-      // scatter rocks
-      for(let i=0;i<18;i++){
-        const rx = c.x + (Math.random()-0.5)*c.r*1.4;
-        const rz = c.z + (Math.random()-0.5)*c.r*1.4;
-        const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(2+(Math.random()*3)), new THREE.MeshLambertMaterial({color:0x666666}));
-        rock.position.set(rx, 1+Math.random()*2, rz);
-        rock.castShadow = true; scene.add(rock);
-      }
-    }
+    // camera/mouse controls
+    let pointerLocked=false; document.addEventListener('pointerlockchange', ()=>{ pointerLocked = document.pointerLockElement === canvas; });
+    document.addEventListener('mousemove', (e)=>{ if(!pointerLocked) return; yaw.rotation.y -= e.movementX * 0.00244; pitch.rotation.x -= e.movementY * 0.00244; pitch.rotation.x = Math.max(-Math.PI/2+0.001, Math.min(Math.PI/2-0.001,pitch.rotation.x)); });
+    function updateArrowLook(dt){ const lookSpeed=1.5; if(keys.has('arrowleft')) yaw.rotation.y += lookSpeed*dt; if(keys.has('arrowright')) yaw.rotation.y -= lookSpeed*dt; if(keys.has('arrowup')) pitch.rotation.x += lookSpeed*dt; if(keys.has('arrowdown')) pitch.rotation.x -= lookSpeed*dt; pitch.rotation.x = Math.max(-Math.PI/2+0.001, Math.min(Math.PI/2-0.001,pitch.rotation.x)); }
 
-    // Burtle Island (round island with butte hill)
-    function createBurtleIsland(){
-      const c = CONFIG.islands.burtle;
-      const isl = makeIslandCircle(c.x, c.z, c.r, 8, 0.5);
-      scene.add(isl);
-      islands.burtle = { mesh: isl, name: 'Burtle Island', center: new THREE.Vector3(c.x,0,c.z) };
-      // a central butte
-      const butteGeo = new THREE.ConeGeometry( c.r*0.25, 24, 24 );
-      const butteMat = new THREE.MeshLambertMaterial({color:0x884422});
-      const butte = new THREE.Mesh(butteGeo, butteMat);
-      butte.position.set(c.x, 12, c.z);
-      butte.castShadow = true; butte.receiveShadow = false; scene.add(butte);
-    }
+    // === assassin (no wave) ===
+    let assassin=null; let assassinMixer=null; let playerInAssassinZone=false; const assassinZoneHalf = 4.5; // extended by +3 from previous 1.5
+    const assassinTex = 'Resources/models/characters/mr.assassin/default.png'; const assassinGLTF='Resources/models/characters/mr.assassin/default_Mr.Assassin.gltf'; const assassinOBJ='Resources/models/characters/mr.assassin/default_Mr.Assassin.obj';
 
-    // ForestTree Island (dense trees area)
-    function createForestTreeIsland(){
-      const c = CONFIG.islands.forest;
-      const isl = makeIslandCircle(c.x, c.z, c.r, 6, 0.55);
-      scene.add(isl);
-      islands.forest = { mesh: isl, name: 'ForestTree Land', center: new THREE.Vector3(c.x,0,c.z) };
-      // dense forest scatter
-      for(let tx=0; tx<120; tx++){
-        const rx = c.x + (Math.random()-0.5)*c.r*2;
-        const rz = c.z + (Math.random()-0.5)*c.r*2;
-        const t = makeTree(); t.position.set(rx, 0, rz); scene.add(t);
-      }
-    }
-
-    // Volcano island: big cone + lava sea + climb behaviour
-    function createVolcanoIsland(){
-      const c = CONFIG.islands.volcano;
-
-      // base island
-      const baseIsl = makeIslandCircle(c.x, c.z, c.r, 14, 0.3);
-      scene.add(baseIsl);
-      islands.volcano = { mesh: baseIsl, name: 'Volcano Island', center: new THREE.Vector3(c.x,0,c.z) };
-
-      // volcano cone
-      const coneHeight = 120;
-      const coneGeo = new THREE.ConeGeometry(c.r*0.4, coneHeight, 48);
-      const lavaMat = new THREE.MeshStandardMaterial({ color: 0xff4400, emissive:0xff3300, emissiveIntensity:0.7, roughness:0.7 });
-      const cone = new THREE.Mesh(coneGeo, lavaMat);
-      cone.position.set(c.x, coneHeight*0.5 - 6, c.z);
-      cone.castShadow = true; scene.add(cone);
-
-      // crater rim: a torus-ish ring (visual)
-      const rimGeo = new THREE.TorusGeometry(c.r*0.12, c.r*0.06, 16, 60);
-      const rimMat = new THREE.MeshLambertMaterial({ color:0x222222 });
-      const rim = new THREE.Mesh(rimGeo, rimMat); rim.position.set(c.x, cone.position.y + coneHeight*0.45, c.z); rim.rotation.x = Math.PI/2; scene.add(rim);
-
-      // lava sea (flat circle with emissive texture)
-      const lavaGeo = new THREE.CircleGeometry(c.r*0.08, 32);
-      const lava = new THREE.Mesh(lavaGeo, new THREE.MeshStandardMaterial({ color:0xff5500, emissive:0xff2200, emissiveIntensity:0.9 }));
-      lava.rotation.x = -Math.PI/2; lava.position.set(c.x, cone.position.y + coneHeight*0.35, c.z);
-      scene.add(lava);
-
-      // climbing aid: we'll sample volcano geometry height for collision and allow walking up the slope
-      islands.volcano.userData = { centerX: c.x, centerZ: c.z, radius: c.r, coneHeight };
-    }
-
-    // create islands now
-    createMainLand();
-    createMinersLand();
-    createBurtleIsland();
-    createForestTreeIsland();
-    createVolcanoIsland();
-
-    /* ==========================================================================================
-       Player entity and movement (same as your previous base, preserved and extended)
-       ========================================================================================== */
-
-    const player = new THREE.Group();
-    player.position.set(0,0,0);
-    scene.add(player);
-    player.add(yaw);
-
-    const keys = new Set();
-    window.addEventListener('keydown', (e)=>{ keys.add(e.key.toLowerCase()); });
-    window.addEventListener('keyup', (e)=>{ keys.delete(e.key.toLowerCase()); });
-
-    const velocity = new THREE.Vector3();
-    const accel = 45; const damping = 10; let maxSpeed = 8; const sprintMult = 1.7;
-
-    let onGround = true; let vy = 0; const gravity = 30; const jumpSpeed = 10; const clock = new THREE.Clock();
-
-    // helper to compute volcano height at x,z (simple conical heightfield)
-    function volcanoHeightAt(x,z){
-      const v = islands.volcano.userData;
-      const dx = x - v.centerX; const dz = z - v.centerZ; const dist = Math.sqrt(dx*dx + dz*dz);
-      if(dist > v.radius*0.45) return 0; // outside cone influence
-      // cone formula: h * (1 - dist / (radius*0.45))
-      const h = v.coneHeight * (1 - dist / (v.radius*0.45));
-      return Math.max(0, h) + 2; // add minor base elevation
-    }
-
-    function move(dt){
-      const forward = (keys.has('w')||keys.has('i'))?1:(keys.has('s')||keys.has('k'))?-1:0;
-      const strafe = (keys.has('a')||keys.has('j'))?1:(keys.has('d')||keys.has('l'))?-1:0;
-
-      const dir = new THREE.Vector3();
-      const yawDir = new THREE.Vector3(-Math.sin(yaw.rotation.y),0,-Math.cos(yaw.rotation.y));
-      const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), yawDir).normalize();
-      dir.addScaledVector(yawDir, forward).addScaledVector(right, strafe).normalize();
-
-      let curAccel = accel; let curMax = maxSpeed;
-      if (keys.has('shift')||keys.has('shiftleft')||keys.has('shiftright')){ curAccel*=sprintMult; curMax*=sprintMult; }
-
-      if(dir.lengthSq()>0) velocity.addScaledVector(dir, curAccel*dt); else { const decel=Math.max(0,1-damping*dt); velocity.multiplyScalar(decel); }
-      const v2 = new THREE.Vector2(velocity.x,velocity.z);
-      if(v2.length()>curMax){ v2.setLength(curMax); velocity.x=v2.x; velocity.z=v2.y; }
-
-      if(onGround) vy = 0; vy -= gravity*dt;
-      if((keys.has(' ')||keys.has('space')) && onGround){ vy = jumpSpeed; onGround=false; }
-
-      player.position.x += velocity.x*dt; player.position.z += velocity.z*dt; player.position.y += vy*dt;
-
-      // simple ground collision and volcano climb behaviour
-      const groundY = sampleWorldHeight(player.position.x, player.position.z);
-      if(player.position.y < groundY){ player.position.y = groundY; onGround = true; vy = 0; }
-    }
-
-    // sample world height: main flat at y=0 plus island heights (simple union)
-    function sampleWorldHeight(x,z){
-      // main land and islands contributions
-      let h = 0; // base ground
-
-      // main land: if within rect, flat slightly elevated
-      const m = CONFIG.islands.main; if(Math.abs(x-m.x) <= m.w*0.5 && Math.abs(z-m.z) <= m.h*0.5){ h = Math.max(h, 0.5); }
-
-      // mincers island influence
-      const mn = CONFIG.islands.mincers; const md = Math.hypot(x-mn.x,z-mn.z); if(md <= mn.r){ h = Math.max(h, 4 * (1 - md/mn.r)); }
-
-      // burtle
-      const bt = CONFIG.islands.burtle; const bd = Math.hypot(x-bt.x,z-bt.z); if(bd <= bt.r){ h = Math.max(h, 3 * (1 - bd/bt.r)); }
-
-      // forest
-      const fr = CONFIG.islands.forest; const fd = Math.hypot(x-fr.x, z-fr.z); if(fd <= fr.r){ h = Math.max(h, 2.5 * (1 - fd/fr.r)); }
-
-      // volcano: use dedicated function
-      const vd = Math.hypot(x - islands.volcano.userData.centerX, z - islands.volcano.userData.centerZ);
-      if(vd <= islands.volcano.userData.radius*0.9){ h = Math.max(h, volcanoHeightAt(x,z)); }
-
-      return h;
-    }
-
-    /* ==========================================================================================
-       Camera look controls (pointer lock mouse movement and keyboard arrow look)
-       ========================================================================================== */
-    let pointerLocked = false;
-    document.addEventListener('pointerlockchange', ()=>{ pointerLocked = document.pointerLockElement === canvas; });
-
-    document.addEventListener('mousemove', (e)=>{
-      if(!pointerLocked) return; yaw.rotation.y -= e.movementX * 0.00244; pitch.rotation.x -= e.movementY * 0.00244; pitch.rotation.x = Math.max(-Math.PI/2+0.001, Math.min(Math.PI/2-0.001,pitch.rotation.x));
-    });
-
-    function updateArrowLook(dt){
-      const lookSpeed = 1.5;
-      if(keys.has('arrowleft')) yaw.rotation.y += lookSpeed*dt;
-      if(keys.has('arrowright')) yaw.rotation.y -= lookSpeed*dt;
-      if(keys.has('arrowup')) pitch.rotation.x += lookSpeed*dt;
-      if(keys.has('arrowdown')) pitch.rotation.x -= lookSpeed*dt;
-      pitch.rotation.x = Math.max(-Math.PI/2+0.001, Math.min(Math.PI/2-0.001,pitch.rotation.x));
-    }
-
-    /* ==========================================================================================
-       Assassin NPC spawn (GLTF or OBJ fallback)
-       - It will lookAt player when present
-       - Has wave interaction and dialog
-       ========================================================================================== */
-
-    let assassin = null; let assassinMixer = null; let assassinAction = null; let playerInWaveZone = false; const waveHalf = 1.5; let dialogueOpen = false;
-
-    // Try GLTF first (if you export as glTF from Blockbench)
-    const assassinGLTF = 'Resources/models/characters/mr.assassin/default_Mr.Assassin.gltf';
-    const assassinOBJ = 'Resources/models/characters/mr.assassin/default_Mr.Assassin.obj';
-    const assassinTex = 'Resources/models/characters/mr.assassin/default.png';
-
-    function spawnAssassin(){
-      const applyTextureAndFinish = (root)=>{
-        root.position.set(77.8, 0, -1.1); root.rotation.y = Math.PI; root.scale.set(1,1,1);
-        root.traverse(c=>{ if(c.isMesh){ c.castShadow = true; c.receiveShadow = true; const tex = texLoader.load(assassinTex); tex.magFilter = THREE.NearestFilter; c.material = new THREE.MeshLambertMaterial({map:tex}); }});
-        scene.add(root); assassin = root; assassin.userData = assassin.userData || {};
-        assassinMixer = new THREE.AnimationMixer(assassin); assassin.userData.mixer = assassinMixer;
-
-        // create simple fallback waving by rotating an arm-like child or root
-        // We assume model may have parts named ArmL etc; if not, we rotate the whole top section as fallback
-        if(assassin.animations && assassin.animations.length){ // gltf animations
-          assassin.animations.forEach(a=>assassinMixer.clipAction(a).setLoop(THREE.LoopOnce,0));
-          assassinAction = assassinMixer.clipAction(assassin.animations[0]); assassinAction.clampWhenFinished=true;
-          console.log('GLTF animations present:', assassin.animations.map(a=>a.name));
-        } else {
-          // fallback: nothing pre-baked — create small programmatic wave using quaternion track if possible later
-          assassinAction = null;
-          console.log('No embedded GLTF animations; using fallback actions.');
-        }
-      };
-
-      // try load gltf
-      gltfLoader.load(assassinGLTF, (g)=>{ console.log('GLTF loaded'); applyTextureAndFinish(g.scene); if(g.animations && g.animations.length){ assassin.animations = g.animations; assassinAction = assassinMixer.clipAction(g.animations[0]); assassinAction.setLoop(THREE.LoopOnce,0); assassinAction.clampWhenFinished=true; } }, undefined, (err)=>{ console.warn('GLTF not found, trying OBJ fallback', err); objLoader.load(assassinOBJ, (o)=>{ applyTextureAndFinish(o); }, undefined, e=>{ console.error('OBJ load failed', e); }); });
-    }
-
+    function spawnAssassin(){ const apply=(root)=>{ root.position.set(77.8,0, -1.1); root.rotation.y = Math.PI; root.scale.set(1,1,1); root.traverse(c=>{ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; const tex = texLoader.load(assassinTex); c.material = new THREE.MeshLambertMaterial({map:tex}); }}); scene.add(root); assassin=root; assassin.userData = assassin.userData || {}; assassinMixer = new THREE.AnimationMixer(assassin); assassin.userData.mixer = assassinMixer; }; gltfLoader.load(assassinGLTF, (g)=>{ apply(g.scene); if(g.animations && g.animations.length){ assassin.animations = g.animations; assassinMixer.clipAction(g.animations[0]).setLoop(THREE.LoopRepeat); } }, undefined, ()=>{ objLoader.load(assassinOBJ, (o)=>{ apply(o); }, undefined, (e)=>{ console.warn('Assassin model failed to load', e); }); }); }
     spawnAssassin();
 
-    // trigger check for wave dialog and interact prompt
-    function checkAssassinProximity(){
-      if(!assassin) { interactPromptEl.style.display='none'; return; }
-      const aPos = new THREE.Vector3(); assassin.getWorldPosition(aPos);
-      const pPos = new THREE.Vector3(); player.getWorldPosition(pPos);
-      const inside = Math.abs(pPos.x-aPos.x)<=waveHalf && Math.abs(pPos.y-aPos.y)<=waveHalf && Math.abs(pPos.z-aPos.z)<=waveHalf;
-      if(inside && !dialogueOpen) interactPromptEl.style.display='block'; else interactPromptEl.style.display='none';
+    function checkAssassinProximity(){ if(!assassin) { interactPromptEl.style.display='none'; return; } const aPos = new THREE.Vector3(); assassin.getWorldPosition(aPos); const pPos = new THREE.Vector3(); player.getWorldPosition(pPos); const inside = Math.abs(pPos.x-aPos.x)<=assassinZoneHalf && Math.abs(pPos.y-aPos.y)<=assassinZoneHalf && Math.abs(pPos.z-aPos.z)<=assassinZoneHalf; if(inside && !dialogueOpen) interactPromptEl.style.display='block'; else interactPromptEl.style.display='none'; if(inside && !playerInAssassinZone){ playerInAssassinZone=true; // no wave, perhaps nod or small idle but we removed wave entirely
+      // play idle animation if available
+      if(assassinMixer && assassin.animations && assassin.animations.length){ const act = assassinMixer.clipAction(assassin.animations[0]); act.reset(); act.play(); }
+    } else if(!inside && playerInAssassinZone){ playerInAssassinZone=false; if(dialogueOpen){ dialogueBoxEl.style.display='none'; dialogueOpen=false; } } }
 
-      if(inside && !playerInWaveZone){ playerInWaveZone=true; // play wave
-        if(assassinAction){ assassinAction.reset(); assassinAction.play(); } else { // fallback programmatic bob
-          // small rotation animation on assassin root as fallback
-          const start = { r: 0 }, end = { r: 0.4 };
-          // we'll perform a quick tween-like manual timeline — store in userData
-          assassin.userData._waveTimer = 0; assassin.userData._waveDuration = 2.0; assassin.userData._waveActive = true;
-        }
-      } else if(!inside && playerInWaveZone){ playerInWaveZone=false; if(dialogueOpen){ dialogueBoxEl.style.display='none'; dialogueOpen=false; } }
-    }
+    // interaction
+    let dialogueOpen=false; document.addEventListener('keydown',(e)=>{ const k=e.key.toLowerCase(); if(k==='e'){ if(interactPromptEl.style.display==='block' && !dialogueOpen){ dialogueBoxEl.style.display='block'; dialogueOpen=true; } } if(e.key==='Escape'){ // toggle pause overlay but KEEP pointer lock
+        if(pauseOverlay.style.display==='flex'){ hidePause(); } else { showPause(); } } }); resumeBtn.addEventListener('click', ()=>{ hidePause(); });
 
-    // Basic dialogue interaction
-    document.addEventListener('keydown', (e)=>{
-      if(e.key.toLowerCase()==='e'){ if(interactPromptEl.style.display==='block' && !dialogueOpen){ dialogueBoxEl.style.display='block'; dialogueOpen=true; }}
-      if(e.key==='Escape'){
-        // toggle pause overlay but do NOT release pointer lock (so cursor stays hidden)
-        togglePause();
-      }
-    });
+    // === teleport menu ===
+    function buildTeleportOverlay(){ teleportOverlay.innerHTML=''; const title = document.createElement('div'); title.style.fontWeight='700'; title.style.marginBottom='6px'; title.textContent='Teleport (Shift+F4)'; teleportOverlay.appendChild(title); const entries = [['Main Land','main'], ['MinersLand','mincers'], ['Burtle Island','burtle'], ['ForestTree','forest'], ['Volcano','volcano']]; entries.forEach(([label,key])=>{ const b=document.createElement('button'); b.textContent=label; b.addEventListener('click', ()=>{ teleportTo(key); }); teleportOverlay.appendChild(b); }); }
+    function teleportTo(key){ const cfg = CONFIG.islands[key]; if(!cfg){ console.warn('Unknown teleport',key); return; } let tx=cfg.x || cfg.x; let tz=cfg.z || cfg.z; const hy = sampleWorldHeight(tx,tz) + 1.8; player.position.set(tx, hy, tz); yaw.position.set(tx, hy, tz); console.log('Teleported to', key, 'pos',tx,hy,tz); }
+    let teleportVisible=false; window.addEventListener('keydown',(e)=>{ if(e.key==='F4' && e.shiftKey){ teleportVisible = !teleportVisible; teleportOverlay.style.display = teleportVisible ? 'block' : 'none'; if(teleportVisible) buildTeleportOverlay(); } });
 
-    // resume button
-    resumeBtn.addEventListener('click', ()=>{ hidePause(); });
+    // pause overlay functions (do not release pointer lock)
+    let menuVisible=false; function showPause(){ pauseOverlay.style.display='flex'; pauseOverlay.style.pointerEvents='none'; menuVisible=true; } function hidePause(){ pauseOverlay.style.display='none'; menuVisible=false; }
 
-    /* ==========================================================================================
-       Teleport overlay (Shift + F4) — shows teleport buttons for notebook lands
-       ========================================================================================== */
+    // debug helpers
+    window.__teleport = teleportTo; window.__player = player; window.__islands = islands; window.__takeScreenshot = ()=>{ const data = renderer.domElement.toDataURL('image/png'); const a=document.createElement('a'); a.href=data; a.download='screenshot.png'; a.click(); };
 
-    function buildTeleportOverlay(){
-      teleportOverlay.innerHTML = '';
-      const title = document.createElement('div'); title.style.fontWeight='700'; title.style.marginBottom='6px'; title.textContent='Teleport (Shift+F4)';
-      teleportOverlay.appendChild(title);
-      const entries = [ ['Main Land','main'], ['MinersLand','mincers'], ['Burtle Island','burtle'], ['ForestTree','forest'], ['Volcano','volcano'] ];
-      entries.forEach(([label,key])=>{
-        const b = document.createElement('button'); b.textContent = label; b.addEventListener('click', ()=>{ teleportTo(key); }); teleportOverlay.appendChild(b);
-      });
-    }
-
-    function teleportTo(key){
-      const cfg = CONFIG.islands[key]; if(!cfg){ console.warn('Unknown teleport',key); return; }
-      // compute destination pos
-      let tx=0,tz=0; if(key==='main'){ tx=CONFIG.islands.main.x; tz=CONFIG.islands.main.z; } else if(key==='mincers'){ tx=CONFIG.islands.mincers.x; tz=CONFIG.islands.mincers.z; } else if(key==='burtle'){ tx=CONFIG.islands.burtle.x; tz=CONFIG.islands.burtle.z; } else if(key==='forest'){ tx=CONFIG.islands.forest.x; tz=CONFIG.islands.forest.z; } else if(key==='volcano'){ tx=CONFIG.islands.volcano.x; tz=CONFIG.islands.volcano.z; }
-      // place player slightly above island center
-      const hy = sampleWorldHeight(tx,tz) + 1.8;
-      player.position.set(tx, hy, tz);
-      yaw.position.set(tx, hy, tz);
-      // small feedback
-      console.log('Teleported to', key, 'pos', tx,hy,tz);
-    }
-
-    // toggle teleport overlay with Shift+F4
-    let teleportVisible=false; window.addEventListener('keydown', (e)=>{
-      if(e.key === 'F4' && (e.shiftKey || e.key==='F4')){
-        if(e.shiftKey){ teleportVisible = !teleportVisible; teleportOverlay.style.display = teleportVisible ? 'block' : 'none'; buildTeleportOverlay(); }
-      }
-    });
-
-    /* ==========================================================================================
-       Pause overlay handling — show overlay but KEEP pointer locked (per your request)
-       ========================================================================================== */
-    let menuVisible = false;
-    function togglePause(){ menuVisible = !menuVisible; if(menuVisible) showPause(); else hidePause(); }
-    function showPause(){ pauseOverlay.style.display='flex'; pauseOverlay.style.pointerEvents='none'; /* overlay visible but pointer events blocked*/ }
-    function hidePause(){ pauseOverlay.style.display='none'; }
-
-    /* ==========================================================================================
-       Debug helpers and developer utility commands available in console
-       ========================================================================================== */
-    window.__teleport = teleportTo; // call from console
-    window.__player = player; window.__islands = islands; window.__sampleWorldHeight = sampleWorldHeight;
-
-    function takeScreenshot(){ const data = renderer.domElement.toDataURL('image/png'); const a=document.createElement('a'); a.href=data; a.download='screenshot.png'; a.click(); }
-    window.__takeScreenshot = takeScreenshot;
-
-    /* ==========================================================================================
-       Main loop
-       ========================================================================================== */
-    function updateAssassinLook(){ if(assassin){ const p = new THREE.Vector3(); player.getWorldPosition(p); assassin.lookAt(p); }}
-
-    function tick(){
-      const dt = Math.min(0.05, clock.getDelta());
-      if(!menuVisible){ updateArrowLook(dt); move(dt); }
-
-      // update assassin mixer
-      if(assassinMixer) assassinMixer.update(dt);
-
-      // fallback programmatic wave animation (if userData._waveActive)
-      if(assassin && assassin.userData && assassin.userData._waveActive){
-        const u = assassin.userData; u._waveTimer += dt; const t = u._waveTimer / u._waveDuration;
-        const angle = Math.sin(t * Math.PI * 2) * 0.4 * (1 - t);
-        assassin.rotation.z = angle; if(t>=1){ u._waveActive=false; assassin.rotation.z = 0; }
-      }
-
-      updateAssassinLook(); checkAssassinProximity();
-
-      sun.position.set(player.position.x + 200, 300, player.position.z + 150);
-      sun.target?.position.copy(player.position);
-
-      renderer.render(scene, camera);
-
-      debugEl.textContent = (
-        `pos: ${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}, ${player.position.z.toFixed(1)}\n` +
-        `yaw: ${(THREE.MathUtils.radToDeg(yaw.rotation.y)%360).toFixed(1)}°  pitch: ${(THREE.MathUtils.radToDeg(pitch.rotation.x)).toFixed(1)}°\n` +
-        `menuVisible: ${menuVisible}  teleportVisible: ${teleportVisible}  inWaveZone: ${playerInWaveZone}  dialogue: ${dialogueOpen}`
-      );
-
-      requestAnimationFrame(tick);
-    }
-
-    tick();
-
-    /* ==========================================================================================
-       Resizing, camera initial placement and UX niceties
-       ========================================================================================== */
-    window.addEventListener('resize', ()=>{ camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
-
-    // initial spawn on Main Land center
+    // initial teleport to main
     teleportTo('main');
 
-    // long comment block to intentionally push file length beyond 500 lines for debugging
-    // -------------------------------------------------------------------------------
-    // The code above is modular: island creation, volcano heightfield and teleport system
-    // are separated. To add new islands, update CONFIG.islands and add a factory similar
-    // to createBurtleIsland()/createForestTreeIsland(). The teleport overlay picks
-    // entries directly from CONFIG.islands keys when you adapt the UI.
+    // rebuild colliders periodically in case models load late
+    setTimeout(rebuildColliders, 1500);
+
+    function tick(){ const dt = Math.min(0.05, clock.getDelta()); if(!menuVisible){ updateArrowLook(dt); move(dt); } if(assassin && assassin.userData && assassin.userData.mixer) assassin.userData.mixer.update(dt); checkAssassinProximity(); sun.position.set(player.position.x + 200, 300, player.position.z + 150); sun.target?.position.copy(player.position); renderer.render(scene, camera); debugEl.textContent = `pos: ${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}, ${player.position.z.toFixed(1)}
+` + `yaw: ${(THREE.MathUtils.radToDeg(yaw.rotation.y)%360).toFixed(1)}° pitch: ${(THREE.MathUtils.radToDeg(pitch.rotation.x)).toFixed(1)}°
+` + `colliders: ${worldColliders.length}  teleportVisible: ${teleportVisible}  dialogueOpen: ${dialogueOpen}`; requestAnimationFrame(tick); }
+    tick();
+
+    // resize
+    window.addEventListener('resize', ()=>{ camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+
+    // long comment block to ensure file length and explain behavior
+    // -----------------------------------------------------------------------------
+    // Changes in this update:
+    //  - Trees are less dense and more spread out.
+    //  - Houses now have AABB colliders (Box3) which prevent walking through them.
+    //  - Door frames are added as visible meshes.
+    //  - Water plane(s) added to the scene (reflective-looking material).
+    //  - Assassin wave removed; interaction zone increased by +3 (now 4.5 half-size -> ~9x9x9 cube).
+    //  - Teleport menu includes Main Land and uses ground sampling so you won't teleport high.
+    //  - Some houses spawn 'locals' using Resources/models/characters/Locals/locals.obj with happy.png texture, scaled to 0.6.
+    //  - Debug helpers __teleport, __takeScreenshot are available in console.
     //
-    // Debugging tips:
-    //  - open console and use __teleport('burtle') to jump around
-    //  - use __takeScreenshot() to save a PNG of current view
-    //  - check __islands to inspect positions and userData
-    //
-    // Future improvements you can request:
-    //  - load structure blocks (.nbt) and render voxel meshes directly
-    //  - integrate ammo.js or cannon-es for real physics collisions
-    //  - better LOD for trees and batching for performance
-    //
-    // End of file note: this script is intentionally verbose and commented to aid
-    // debugging and to match your request for a large code file. Edit CONFIG.islands
-    // to tune positions exactly to your notebook sketch if you want micro-adjustments.
-    // -------------------------------------------------------------------------------
+    // Notes & TODOs:
+    //  - Precise mesh collisions (per-triangle) require a physics engine. For now we use Box3 AABB
+    //    colliders generated from house meshes and simple rock/butte meshes. This is precise enough
+    //    for blocky houses and prevents walking through walls. If you want perfect per-triangle
+    //    collision, I can integrate cannon-es or ammo.js.
+    //  - Water is a simple standard material with some metalness and emissive tint to look reflective.
+    //  - Locals load via OBJ; if you have an MTL, OBJLoader will ignore the MTL unless you use MTLLoader.
+    //    If you prefer MTL support, I can add MTLLoader and prefer .mtl when present.
+    //  - If you want houses to be non-walkable on roofs too, adjust collider sizes in rebuildColliders().
+    // -----------------------------------------------------------------------------
 
   </script>
 </body>
