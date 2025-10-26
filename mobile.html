@@ -1,1 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Unkown — Mortal Realm</title>
+  <link rel="icon" type="image/x-icon" href="Unkown.ico">
+  <style>
+    /* ------------------------------------------------------------------
+       Visual UI and debug styles
+       ------------------------------------------------------------------ */
+    html,body{height:100%;margin:0;background:#0b0e13;color:#e5e7eb;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,Cantarell,"Noto Sans",Arial;}
+    canvas { display:block; width:100vw; height:100vh; }
+    #ui { position: fixed; top: 8px; left: 8px; right: 8px; display:flex; justify-content:space-between; align-items:center; pointer-events:none; z-index:50; }
+    #hint { pointer-events:none; opacity:0.9; font-size:14px; }
+    #btnStart { pointer-events:auto; border:1px solid #374151; background:#111827; color:#e5e7eb; padding:8px 10px; border-radius:8px; cursor:pointer; }
+    .crosshair { position: fixed; top: 50%; left:50%; width:18px; height:18px; transform:translate(-50%,-50%); pointer-events:none; z-index:50; }
+    .crosshair::before, .crosshair::after { content:""; position:absolute; background:#e5e7eb; }
+    .crosshair::before { left:9px; top:0; width:2px; height:18px; } .crosshair::after { top:9px; left:0; width:18px; height:2px; }
 
+    #debug { position:fixed; left:10px; bottom:10px; padding:8px 10px; background:rgba(0,0,0,0.35); border-radius:8px; font-family:monospace; font-size:12px; color:#fff; pointer-events:none; z-index:50; white-space:pre; }
+
+    /* pause overlay (we show it but don't release pointer lock until hold) */
+    #pauseOverlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:60; background:rgba(0,0,0,0.5); pointer-events:auto; }
+    #pausePanel { width:560px; max-width:95%; background:rgba(10,12,16,0.95); border-radius:12px; padding:20px; color:#e5e7eb; text-align:center; box-shadow:0 10px 40px rgba(0,0,0,0.6); }
+    #pausePanel h2 { margin:0 0 10px 0; font-size:20px; letter-spacing:0.3px; }
+    #pausePanel p { margin:6px 0 14px 0; opacity:0.9; }
+    #pauseButtons { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+    #pauseButtons button { background:#111827; color:#e5e7eb; border:1px solid #2b2f36; padding:8px 12px; border-radius:8px; cursor:pointer; }
+
+    /* interact and dialog */
+    #interactPrompt { position:fixed; bottom:14%; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.6); padding:8px 12px; border-radius:8px; display:none; z-index:55; pointer-events:none; }
+    #dialogueBox { position:fixed; left:6%; right:6%; bottom:16px; background:rgba(0,0,0,0.95); padding:16px 20px; border-radius:14px; display:none; z-index:55; color:#e5e7eb; }
+    #dialogueBox .title{ font-weight:700; margin-bottom:8px; }
+    #dialogueBox .content{ line-height:1.4; }
+
+    /* extra spacer comments to help debugging and file length */
+    /* ------------------------------------------------------------------ */
+  </style>
+
+  <!-- import map for ESM modules we use (Three + a couple small helpers) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.164.1/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.164.1/examples/jsm/",
+      "pako": "https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.esm.mjs",
+      "prismarine-nbt": "https://unpkg.com/prismarine-nbt@2.1.0/dist/index.esm.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="ui">
+    <div id="hint">WASD / IJKL to move · Mouse or Arrow Keys to look · Space to jump · Shift to sprint</div>
+    <button id="btnStart">Click to focus mouse</button>
+  </div>
+
+  <div class="crosshair" aria-hidden="true"></div>
+  <div id="debug">initializing...</div>
+
+  <div id="pauseOverlay" aria-hidden="true">
+    <div id="pausePanel">
+      <h2>Paused</h2>
+      <p>Hold <strong>Esc</strong> for 1.5s to release the mouse and fully enter menu mode.</p>
+      <div id="pauseButtons">
+        <button id="resumeBtn">Resume</button>
+        <button id="mainMenuBtn">Main Menu</button>
+      </div>
+      <p style="opacity:0.8; margin-top:12px; font-size:13px;">Pointer lock remains while pause is toggled by tap; hold to unhide the cursor.</p>
+    </div>
+  </div>
+
+  <div id="interactPrompt">Press E to interact</div>
+
+  <div id="dialogueBox" role="dialog" aria-hidden="true">
+    <div class="title">Mr. Assassin</div>
+    <div class="content" id="dialogueText">...hello?</div>
+  </div>
+
+  <canvas id="c"></canvas>
+
+  <script type="module">
+  // ==================================================================
+  // Full integrated scene
+  // - world OBJ+MTL loader (a.obj / a.mtl + textures)
+  // - attempts to read level.dat spawn using pako & prismarine-nbt
+  // - hold Esc for 1.5s to release pointer lock (unhide mouse)
+  // - improved Minecraft-like texture filtering (Nearest)
+  // - large ocean plane
+  // - Mr. Assassin NPC with interaction
+  // - house colliders and locals (from Locals/locals.obj with happy.png)
+  // - teleportation removed
+  // ==================================================================
+
+  import * as THREE from 'three';
+  import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
+  import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
+  import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+  import { ungzip } from 'pako';
+  import { parse } from 'prismarine-nbt';
+
+  // -----------------------
+  // Canvas / Renderer / Scene
+  // -----------------------
+  const canvas = document.getElementById('c');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x87CEEB); // daytime sky color
+
+  // camera + yaw / pitch holder for FPS-style movement
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 5000);
+  const yaw = new THREE.Object3D();
+  const pitch = new THREE.Object3D();
+  yaw.position.set(0, 1.8, 0);
+  yaw.add(pitch);
+  pitch.add(camera);
+  scene.add(yaw);
+
+  // Lighting
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x88aaff, 0.5); scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+  sun.castShadow = true;
+  sun.position.set(200, 300, 150);
+  sun.shadow.mapSize.set(2048, 2048);
+  scene.add(sun);
+
+  // Loaders
+  const mtlLoader = new MTLLoader();
+  const objLoader = new OBJLoader();
+  const gltfLoader = new GLTFLoader();
+  const textureLoader = new THREE.TextureLoader();
+
+  // HTML elements
+  const btnStart = document.getElementById('btnStart');
+  const debugEl = document.getElementById('debug');
+  const pauseOverlay = document.getElementById('pauseOverlay');
+  const resumeBtn = document.getElementById('resumeBtn');
+  const mainMenuBtn = document.getElementById('mainMenuBtn');
+  const interactPromptEl = document.getElementById('interactPrompt');
+  const dialogueBoxEl = document.getElementById('dialogueBox');
+  const dialogueTextEl = document.getElementById('dialogueText');
+
+  // -----------------------
+  // Config & resource paths
+  // -----------------------
+  const WORLD_BASE = "Resources/world_save/world_file/mortal_realm/";
+  const WORLD_OBJ = WORLD_BASE + "a.obj";
+  const WORLD_MTL = WORLD_BASE + "a.mtl";
+  const LEVEL_DAT = WORLD_BASE + "level.dat"; // we'll try to parse this for worldspawn
+  const LOCALS_OBJ = "Resources/models/characters/Locals/locals.obj";
+  const LOCALS_TEX = "Resources/models/characters/Locals/happy.png";
+  const ASSASSIN_GLB = WORLD_BASE + "assassin_gltf_optional.glb"; // optional fallback; we will fallback to obj if present
+  const ASSASSIN_OBJ = "Resources/models/characters/mr.assassin/default_Mr.Assassin.obj";
+  const ASSASSIN_TEXTURE = "Resources/models/characters/mr.assassin/default.png";
+
+  // Player and movement state
+  const player = new THREE.Group();
+  player.position.set(0,0,0);
+  scene.add(player);
+  player.add(yaw);
+
+  const keys = new Set();
+  window.addEventListener('keydown', (e) => { keys.add(e.key.toLowerCase()); });
+  window.addEventListener('keyup',   (e) => { keys.delete(e.key.toLowerCase()); });
+
+  const velocity = new THREE.Vector3();
+  const accel = 45;
+  const damping = 10;
+  let maxSpeed = 8;
+  const sprintMult = 1.7;
+
+  let onGround = true;
+  let vy = 0;
+  const gravity = 30;
+  const jumpSpeed = 10;
+  const clock = new THREE.Clock();
+
+  // collision colliders (Box3)
+  const worldColliders = [];
+
+  // debug helpers
+  window.__player = player;
+  window.__scene = scene;
+
+  // -----------------------
+  // Helper: set pixel-perfect Minecraft-style filtering
+  // -----------------------
+  function pixelateTexture(tex) {
+    if (!tex) return;
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
+    tex.needsUpdate = true;
+  }
+
+  // -----------------------
+  // Ocean (large plane around world)
+  // -----------------------
+  function createOcean() {
+    // big plane that covers far beyond islands
+    const size = 5000;
+    const geo = new THREE.PlaneGeometry(size, size, 1, 1);
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x1e6bff,
+      metalness: 0.2,
+      roughness: 0.25,
+      envMapIntensity: 0.8,
+      transparent: true,
+      opacity: 0.95
+    });
+    const ocean = new THREE.Mesh(geo, mat);
+    ocean.rotation.x = -Math.PI/2;
+    ocean.position.y = -0.1; // slightly below default ground
+    ocean.receiveShadow = true;
+    scene.add(ocean);
+    return ocean;
+  }
+  createOcean();
+
+  // -----------------------
+  // World geometry loader (OBJ + MTL) — uses a.obj / a.mtl in WORLD_BASE
+  // -----------------------
+  let worldRoot = null;
+
+  function loadWorldOBJ() {
+    // Try to load MTL first, then OBJ using that MTL.
+    mtlLoader.setPath(WORLD_BASE);
+    mtlLoader.load(
+      "a.mtl",
+      (materials) => {
+        materials.preload();
+        objLoader.setMaterials(materials);
+        objLoader.setPath(WORLD_BASE);
+        objLoader.load(
+          "a.obj",
+          (obj) => {
+            obj.name = "MortalRealm";
+            // Many OBJ exports might be too large/small: keep default scale=1 (Mineways uses 1 block=1 meter)
+            obj.traverse((c) => {
+              if (c.isMesh) {
+                c.castShadow = true;
+                c.receiveShadow = true;
+                // ensure texture filter if material has a map
+                if (c.material && c.material.map) {
+                  pixelateTexture(c.material.map);
+                }
+                // if material has transparency, enable alpha
+                c.material.transparent = c.material.opacity < 1.0;
+              }
+            });
+            scene.add(obj);
+            worldRoot = obj;
+            console.log("World OBJ loaded:", obj);
+            // generate a simple bounding-collider for the entire mesh (fallback)
+            const box = new THREE.Box3().setFromObject(obj);
+            worldColliders.push(box);
+            debugLog("World loaded: a.obj added.");
+          },
+          (xhr) => { /* progress */ },
+          (err) => { console.warn("Failed to load a.obj/a.mtl", err); }
+        );
+      },
+      undefined,
+      (err) => {
+        // MTL couldn't load — try OBJ alone (may have own material references)
+        console.warn("MTL load failed, trying plain OBJ", err);
+        objLoader.setPath(WORLD_BASE);
+        objLoader.load("a.obj", (obj) => {
+          obj.name = "MortalRealm";
+          obj.traverse((c) => {
+            if (c.isMesh) {
+              c.castShadow = true;
+              c.receiveShadow = true;
+            }
+          });
+          scene.add(obj);
+          worldRoot = obj;
+          worldColliders.push(new THREE.Box3().setFromObject(obj));
+          debugLog("World loaded: a.obj (no mtl).");
+        }, undefined, (err2) => {
+          console.error("Failed to load a.obj:", err2);
+        });
+      }
+    );
+  }
+
+  // call load
+  loadWorldOBJ();
+
+  // -----------------------
+  // Houses, door frames, locals spawn (keeps house colliders)
+  // For debug, we create some houses inside main island bounds
+  // -----------------------
+  const islands = {}; // keep small registry for named islands (approx centers)
+  islands.main = { x: 0, z: 0, w: 120, h: 120 };
+
+  function createHousesAndLocals() {
+    const houseGroup = new THREE.Group();
+    scene.add(houseGroup);
+    islands.main.houses = [];
+
+    const houseGeo = new THREE.BoxGeometry(6, 4, 6);
+    const houseMat = new THREE.MeshLambertMaterial({ color: 0x2d2d2d });
+
+    for (let i = 0; i < 6; i++) {
+      const h = new THREE.Mesh(houseGeo, houseMat);
+      const px = islands.main.x + (i - 2.5) * 14;
+      const pz = islands.main.z + 10 + (i % 2) * 8;
+      h.position.set(px, 2, pz);
+      h.castShadow = true;
+      h.receiveShadow = true;
+      houseGroup.add(h);
+
+      // door frame
+      const df = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.2, 0.2), new THREE.MeshLambertMaterial({ color: 0x4a2f1b }));
+      df.position.set(px + 2.4, 1, pz);
+      scene.add(df);
+
+      // collider
+      const b = new THREE.Box3().setFromObject(h);
+      islands.main.houses.push({ mesh: h, collider: b });
+
+      // spawn locals with some probability
+      if (Math.random() < 0.6) spawnLocalInHouse(px, pz);
+    }
+  }
+
+  function spawnLocalInHouse(hx, hz) {
+    // load locals.obj and apply happy texture; scale smaller than player
+    objLoader.load(LOCALS_OBJ, (obj) => {
+      obj.traverse(c => {
+        if (c.isMesh) {
+          c.castShadow = true;
+          c.receiveShadow = true;
+          const tex = textureLoader.load(LOCALS_TEX, (t) => { pixelateTexture(t); });
+          c.material = new THREE.MeshLambertMaterial({ map: textureLoader.load(LOCALS_TEX) });
+        }
+      });
+      obj.scale.set(0.6, 0.6, 0.6);
+      obj.position.set(hx, 0.6, hz);
+      scene.add(obj);
+    }, undefined, (err) => { console.warn("locals.obj not found", err); });
+  }
+
+  createHousesAndLocals();
+
+  // build world colliders from houses
+  function rebuildWorldColliders() {
+    worldColliders.length = 0;
+    if (islands.main && islands.main.houses) {
+      islands.main.houses.forEach(h => {
+        worldColliders.push(h.collider.clone());
+      });
+    }
+    // add simple box colliders for worldRoot (fallback)
+    if (worldRoot) {
+      worldColliders.push(new THREE.Box3().setFromObject(worldRoot));
+    }
+  }
+
+  // call rebuild after a delay (models may load slowly)
+  setTimeout(rebuildWorldColliders, 1200);
+
+  // -----------------------
+  // Mr. Assassin NPC (no wave animation)
+  // - rotate to face player
+  // - larger interaction box (extended by +3)
+  // -----------------------
+  let assassin = null;
+  let assassinTexture = null;
+  const assassinZoneHalf = 4.5; // extended more than 1.5 to give +3
+  function spawnAssassin() {
+    // try glb/gltf first (if you exported one), else try OBJ
+    gltfLoader.load(ASSASSIN_GLB, (g) => {
+      assassin = g.scene;
+      finishAssassin();
+    }, undefined, (_) => {
+      // fallback to OBJ
+      objLoader.load(ASSASSIN_OBJ, (obj) => {
+        assassin = obj;
+        finishAssassin();
+      }, undefined, (err) => {
+        console.warn("Failed to load assassin model", err);
+      });
+    });
+  }
+
+  function finishAssassin() {
+    if (!assassin) return;
+    assassin.position.set(77.8, 0, -1.1);
+    assassin.rotation.y = Math.PI; // you originally wanted to rotate him 180
+    assassin.scale.set(1, 1, 1);
+    assassin.traverse((c) => {
+      if (c.isMesh) {
+        c.castShadow = true;
+        c.receiveShadow = true;
+        if (c.material && !c.material.map) {
+          // apply texture if available (pixelate)
+          const tex = textureLoader.load(ASSASSIN_TEXTURE, (t) => { pixelateTexture(t); });
+          c.material = new THREE.MeshLambertMaterial({ map: tex });
+        } else if (c.material && c.material.map) {
+          pixelateTexture(c.material.map);
+        }
+      }
+    });
+    scene.add(assassin);
+  }
+
+  spawnAssassin();
+
+  // check for proximity/interaction with assassin
+  let playerInAssassinZone = false;
+
+  function checkAssassinProximity() {
+    if (!assassin) {
+      interactPromptEl.style.display = 'none';
+      return;
+    }
+    const aPos = new THREE.Vector3();
+    const pPos = new THREE.Vector3();
+    assassin.getWorldPosition(aPos);
+    player.getWorldPosition(pPos);
+
+    const inside = Math.abs(pPos.x - aPos.x) <= assassinZoneHalf &&
+                   Math.abs(pPos.y - aPos.y) <= assassinZoneHalf &&
+                   Math.abs(pPos.z - aPos.z) <= assassinZoneHalf;
+
+    if (inside && !dialogueOpen) interactPromptEl.style.display = 'block';
+    else interactPromptEl.style.display = 'none';
+
+    if (inside && !playerInAssassinZone) {
+      playerInAssassinZone = true;
+      // short "idle" animation would play here if present - we removed wave
+      // keep assassin facing player
+      // (actual facing is handled each frame in update)
+    } else if (!inside && playerInAssassinZone) {
+      playerInAssassinZone = false;
+      if (dialogueOpen) { dialogueBoxEl.style.display = 'none'; dialogueOpen = false; }
+    }
+  }
+
+  // interaction key
+  let dialogueOpen = false;
+  document.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    if (k === 'e') {
+      if (interactPromptEl.style.display === 'block' && !dialogueOpen) {
+        dialogueBoxEl.style.display = 'block';
+        dialogueOpen = true;
+        dialogueTextEl.textContent = "Welcome to the Mortal Realm.";
+      }
+    }
+    // hold/press Esc behaviour handled separately
+  });
+
+  // -----------------------
+  // Spawn player at worldspawn (try to parse level.dat). If not present, fallback.
+  // Uses pako + prismarine-nbt in-browser to attempt to read the gzipped NBT.
+  // -----------------------
+  async function readLevelDatSpawn() {
+    try {
+      const res = await fetch(LEVEL_DAT);
+      if (!res.ok) throw new Error('level.dat not found (http ' + res.status + ')');
+      const buffer = await res.arrayBuffer();
+      const compressed = new Uint8Array(buffer);
+      const decompressed = ungzip(compressed); // returns Uint8Array
+      // prismarine-nbt parse expects Buffer; Node Buffer is available in some browsers via polyfill,
+      // but prismarine-nbt.parse accepts Uint8Array as well (depending on build). Wrap in Buffer for safety.
+      const nbt = await parse(Buffer.from(decompressed));
+      const root = nbt.value;
+      const data = root && root.Data && root.Data.value;
+      if (!data) return null;
+      const sx = data.SpawnX?.value ?? (data.Spawn?.value?.x?.value);
+      const sy = data.SpawnY?.value ?? (data.Spawn?.value?.y?.value);
+      const sz = data.SpawnZ?.value ?? (data.Spawn?.value?.z?.value);
+      if (sx == null || sy == null || sz == null) return null;
+      return { x: sx, y: sy, z: sz };
+    } catch (err) {
+      console.warn("readLevelDatSpawn failed:", err);
+      return null;
+    }
+  }
+
+  async function applyWorldSpawnOrFallback() {
+    const spawn = await readLevelDatSpawn();
+    if (spawn) {
+      // lift spawn slightly
+      spawn.y += 0.1;
+      setPlayerTo(spawn.x, spawn.y, spawn.z);
+      debugLog('Spawn set from level.dat: ' + JSON.stringify(spawn));
+    } else {
+      // fallback: a reasonable default above main island
+      setPlayerTo(0, 1.8, 0);
+      debugLog('level.dat not parsed; using fallback spawn at 0,1.8,0');
+    }
+  }
+
+  function setPlayerTo(x, y, z) {
+    player.position.set(x, y, z);
+    // ensure yaw holder also moves (so camera stays with player)
+    yaw.position.set(x, y, z);
+  }
+
+  // Run spawn logic
+  applyWorldSpawnOrFallback();
+
+  // -----------------------
+  // Movement + collision sampling
+  // - sampleWorldHeight uses simple heuristics (we still have worldRoot but world is a static mesh)
+  // - collisions use worldColliders (AABB)
+  // -----------------------
+  function sampleWorldHeight(x, z) {
+    // simple heuristic so we don't drop through: if inside main island area, return 0 (ground)
+    const m = islands.main;
+    if (Math.abs(x - m.x) <= m.w * 0.5 && Math.abs(z - m.z) <= m.h * 0.5) {
+      return 0;
+    }
+    // if worldRoot present, sample its bounding box bottom
+    if (worldRoot) {
+      const b = new THREE.Box3().setFromObject(worldRoot);
+      // if inside bb area in xz, return b.min.y as ground (coarse)
+      if (x >= b.min.x && x <= b.max.x && z >= b.min.z && z <= b.max.z) {
+        return b.min.y;
+      }
+    }
+    // ocean level otherwise slightly below 0
+    return -0.05;
+  }
+
+  function intersectsColliders(box) {
+    for (const cb of worldColliders) {
+      if (cb.intersectsBox(box)) return true;
+    }
+    return false;
+  }
+
+  function movePlayer(dt) {
+    const forward = (keys.has('w') || keys.has('i')) ? 1 : (keys.has('s') || keys.has('k')) ? -1 : 0;
+    const strafe  = (keys.has('a') || keys.has('j')) ? 1 : (keys.has('d') || keys.has('l')) ? -1 : 0;
+
+    const dir = new THREE.Vector3();
+    const yawDir = new THREE.Vector3(-Math.sin(yaw.rotation.y), 0, -Math.cos(yaw.rotation.y));
+    const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), yawDir).normalize();
+    dir.addScaledVector(yawDir, forward).addScaledVector(right, strafe).normalize();
+
+    let curAccel = accel;
+    let curMax = maxSpeed;
+    if (keys.has('shift') || keys.has('shiftleft') || keys.has('shiftright')) {
+      curAccel *= sprintMult;
+      curMax *= sprintMult;
+    }
+
+    if (dir.lengthSq() > 0) velocity.addScaledVector(dir, curAccel * dt);
+    else {
+      const decel = Math.max(0, 1 - damping * dt); velocity.multiplyScalar(decel);
+    }
+
+    const v2 = new THREE.Vector2(velocity.x, velocity.z);
+    if (v2.length() > curMax) { v2.setLength(curMax); velocity.x = v2.x; velocity.z = v2.y; }
+
+    if (onGround) vy = 0;
+    vy -= gravity * dt;
+    if ((keys.has(' ') || keys.has('space')) && onGround) { vy = jumpSpeed; onGround = false; }
+
+    const nextX = player.position.x + velocity.x * dt;
+    const nextZ = player.position.z + velocity.z * dt;
+    let nextY = player.position.y + vy * dt;
+
+    const groundY = sampleWorldHeight(nextX, nextZ);
+    if (nextY < groundY) { nextY = groundY; onGround = true; vy = 0; }
+
+    // bounding box for player (AABB)
+    const halfSize = new THREE.Vector3(0.4, 1.0, 0.4);
+    const box = new THREE.Box3(
+      new THREE.Vector3(nextX - halfSize.x, nextY - halfSize.y, nextZ - halfSize.z),
+      new THREE.Vector3(nextX + halfSize.x, nextY + halfSize.y, nextZ + halfSize.z)
+    );
+
+    if (intersectsColliders(box)) {
+      // simple response: cancel horizontal movement
+      velocity.x = 0; velocity.z = 0;
+    } else {
+      player.position.set(nextX, nextY, nextZ);
+      yaw.position.set(nextX, nextY, nextZ);
+    }
+  }
+
+  // -----------------------
+  // Pointer lock, UI buttons, and hold-Esc behavior
+  // - Tap Esc toggles pause overlay but keeps pointer locked
+  // - Hold Esc for 1.5s -> release pointer lock and show menu interaction (uncapture mouse)
+  // -----------------------
+  let pointerLocked = false;
+  document.addEventListener('pointerlockchange', () => {
+    pointerLocked = document.pointerLockElement === document.body || document.pointerLockElement === canvas;
+  });
+
+  btnStart.addEventListener('click', () => {
+    canvas.requestPointerLock?.();
+    // hide pause overlay if present
+    hidePauseOverlay();
+    btnStart.blur();
+  });
+
+  // hold-to-unlock logic
+  let escHoldTimer = null;
+  const ESC_HOLD_MS = 1500; // 1.5 seconds to fully release pointer lock
+  let escIsDown = false;
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (escIsDown) return;
+      escIsDown = true;
+      // start hold timer
+      escHoldTimer = setTimeout(() => {
+        // after hold, release pointer lock (unhide mouse) if locked
+        if (document.exitPointerLock) {
+          document.exitPointerLock();
+        }
+        // show the pause overlay fully (menu mode)
+        showPauseOverlay(true);
+      }, ESC_HOLD_MS);
+      // quick tap toggles pause overlay but keeps pointer lock
+      // We will toggle overlay on keydown *only if pointerLocked*
+      if (pointerLocked) {
+        // toggle overlay visibility but don't unlock
+        if (pauseOverlay.style.display === 'flex') {
+          hidePauseOverlay();
+        } else {
+          showPauseOverlay(false); // show but don't release pointer lock
+        }
+      } else {
+        // if pointer not locked, pressing Esc should just show overlay (we are probably already unlocked)
+        showPauseOverlay(true);
+      }
+    }
+  });
+
+  document.addEventListener('keyup', (e) => {
+    if (e.key === 'Escape') {
+      escIsDown = false;
+      if (escHoldTimer) {
+        clearTimeout(escHoldTimer);
+        escHoldTimer = null;
+      }
+      // If overlay visible and pointer still locked, we leave as-is (tap toggled)
+    }
+  });
+
+  // explicit buttons
+  resumeBtn.addEventListener('click', () => {
+    hidePauseOverlay();
+    // attempt to lock pointer again
+    canvas.requestPointerLock?.();
+  });
+  mainMenuBtn.addEventListener('click', () => {
+    // simple reload to represent main menu for now
+    location.reload();
+  });
+
+  function showPauseOverlay(fullUnlock) {
+    pauseOverlay.style.display = 'flex';
+    pauseOverlay.setAttribute('aria-hidden', 'false');
+    // when fullUnlock is true, pointer lock will be released by the hold handler
+    // we still set menuVisible flag
+    menuVisible = true;
+  }
+
+  function hidePauseOverlay() {
+    pauseOverlay.style.display = 'none';
+    pauseOverlay.setAttribute('aria-hidden', 'true');
+    menuVisible = false;
+  }
+
+  let menuVisible = false;
+
+  // -----------------------
+  // Main animation tick
+  // -----------------------
+  function updateAssassinLook() {
+    if (!assassin) return;
+    // rotate only on Y axis to face player
+    const aPos = new THREE.Vector3();
+    assassin.getWorldPosition(aPos);
+    const pPos = new THREE.Vector3();
+    player.getWorldPosition(pPos);
+    const dx = pPos.x - aPos.x;
+    const dz = pPos.z - aPos.z;
+    assassin.rotation.y = Math.atan2(dx, dz); // note: using z-forward, small fudge
+  }
+
+  function debugLog(msg) {
+    debugEl.textContent = msg;
+  }
+
+  function tick() {
+    const dt = Math.min(0.05, clock.getDelta());
+
+    if (!menuVisible) {
+      // input & movement only active when not in menu (but pointer lock may still be on)
+      updateArrowLook(dt);
+      movePlayer(dt);
+    }
+
+    // update assassin facing
+    updateAssassinLook();
+
+    // update Colliders / world interactions
+    checkAssassinProximity();
+
+    // update any mixers (if assassin has animations loaded)
+    if (assassin && assassin.userData && assassin.userData.mixer) {
+      assassin.userData.mixer.update(dt);
+    }
+
+    // sun follow player
+    sun.position.set(player.position.x + 200, 300, player.position.z + 150);
+    sun.target?.position.copy(player.position);
+
+    renderer.render(scene, camera);
+
+    // debug text
+    debugEl.textContent =
+      `pos: ${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}, ${player.position.z.toFixed(1)}\n` +
+      `yaw: ${(THREE.MathUtils.radToDeg(yaw.rotation.y) % 360).toFixed(1)}°  pitch: ${(THREE.MathUtils.radToDeg(pitch.rotation.x)).toFixed(1)}°\n` +
+      `colliders: ${worldColliders.length}  pointerLocked: ${pointerLocked}  menuVisible: ${menuVisible}\n` +
+      `assassinLoaded: ${assassin ? 'yes' : 'no'}  dialogueOpen: ${dialogueOpen ? 'yes' : 'no'}`;
+
+    requestAnimationFrame(tick);
+  }
+  tick();
+
+  // -----------------------
+  // camera look with keyboard fallback (arrows)
+  // -----------------------
+  function updateArrowLook(dt) {
+    const lookSpeed = 1.5;
+    if (keys.has('arrowleft')) yaw.rotation.y += lookSpeed * dt;
+    if (keys.has('arrowright')) yaw.rotation.y -= lookSpeed * dt;
+    if (keys.has('arrowup')) pitch.rotation.x += lookSpeed * dt;
+    if (keys.has('arrowdown')) pitch.rotation.x -= lookSpeed * dt;
+    pitch.rotation.x = Math.max(-Math.PI/2 + 0.001, Math.min(Math.PI/2 - 0.001, pitch.rotation.x));
+  }
+
+  // -----------------------
+  // window resize
+  // -----------------------
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // -----------------------
+  // small utilities and notes
+  // -----------------------
+  // Expose a few helpers for debugging in console
+  window.__rebuildColliders = rebuildWorldColliders;
+  window.__setSpawn = (x,y,z) => setPlayerTo(x,y,z);
+
+  // End of module
+  </script>
+</body>
+</html>
