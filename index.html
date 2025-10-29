@@ -3,61 +3,102 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Unknown.</title>
-  <link rel="icon" href="Unkown.ico" type="image/x-icon" />
+  <title>Unknown</title>
+  <link rel="icon" type="image/x-icon" href="Unkown.ico">
   <style>
-    body {
+    html, body {
+      height: 100%;
       margin: 0;
-      overflow: hidden;
-      background-color: black;
-      font-family: monospace;
-      color: white;
+      background:#0b0e13;
+      color:#e5e7eb;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      overflow:hidden;
     }
-
-    canvas {
-      display: block;
+    #ui {
+      position: fixed;
+      top: 0; left: 0; right:0;
+      display:flex; align-items:center; justify-content:space-between;
+      padding: 10px 12px;
+      pointer-events: none;
+      z-index:5;
     }
-
-    /* Pause menu styles */
-    #pauseMenu {
+    #hint { opacity: 0.9; }
+    #btnStart {
+      pointer-events: auto;
+      border:1px solid #374151;
+      background:#111827;
+      color:#e5e7eb;
+      padding:8px 12px;
+      border-radius:10px;
+      cursor:pointer;
+    }
+    #btnStart:hover { background:#0f172a; }
+    .crosshair {
+      position: fixed;
+      top: 50%; left: 50%;
+      width: 16px; height: 16px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index:5;
+    }
+    .crosshair::before, .crosshair::after {
+      content: "";
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: rgba(0, 0, 0, 0.75);
-      display: none;
-      justify-content: center;
-      align-items: center;
+      background: #e5e7eb;
+    }
+    .crosshair::before { left: 7px; top: 0; width: 2px; height: 16px; }
+    .crosshair::after { top: 7px; left: 0; width: 16px; height: 2px; }
+
+    #debug {
+      position: fixed;
+      left: 10px; bottom: 10px;
+      background: rgba(0,0,0,0.35);
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-size: 12px;
+      white-space: pre;
+      pointer-events: none;
+      z-index:5;
+    }
+
+    #menuScreen {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      display: flex;
       flex-direction: column;
-      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      display:none;
     }
-
-    #pauseMenu button {
-      background: #111;
-      color: white;
-      border: 2px solid white;
-      padding: 10px 30px;
+    #menuScreen button {
       margin: 10px;
-      font-size: 1.2em;
+      padding: 12px 24px;
+      font-size: 18px;
+      border: none;
+      border-radius: 10px;
       cursor: pointer;
-      border-radius: 8px;
-      transition: all 0.2s ease;
+      background: rgba(17,24,39,0.8);
+      color: #e5e7eb;
     }
-
-    #pauseMenu button:hover {
-      background: white;
-      color: black;
-    }
+    #menuScreen button:hover { background: rgba(31,41,55,0.9); }
   </style>
 </head>
 <body>
-  <div id="pauseMenu">
-    <h1>Game Paused</h1>
-    <button id="resumeBtn">Resume</button>
+  <div id="ui">
+    <div id="hint">WASD / IJKL to move · Mouse or Arrows to look · Space to jump · Shift to sprint</div>
+    <button id="btnStart">Click to focus mouse</button>
+  </div>
+  <div class="crosshair"></div>
+  <div id="debug"></div>
+
+  <div id="menuScreen">
+    <button id="btnResume">Continue</button>
+    <button id="btnQuit">Quit</button>
   </div>
 
-  <!-- ✅ type="module" ensures modern import/export works -->
+  <!-- ✅ game logic -->
   <script type="module" src="./game.js"></script>
 </body>
 </html>
