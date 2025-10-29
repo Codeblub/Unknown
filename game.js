@@ -1,4 +1,4 @@
-// Import THREE.js and helpers from CDN (browser-safe)
+// ✅ Import from CDN instead of bare module name
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js";
 import { MTLLoader } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/MTLLoader.js";
@@ -82,10 +82,7 @@ window.addEventListener("keydown", (e) => {
 });
 
 window.addEventListener("keyup", (e) => {
-  // Holding ESC must unhide cursor
-  if (e.key === "Escape") {
-    togglePause(true);
-  }
+  if (e.key === "Escape") togglePause(true);
 });
 
 // === ANIMATION LOOP ===
