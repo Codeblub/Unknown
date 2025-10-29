@@ -1,150 +1,102 @@
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
-import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js";
-import { OBJLoader } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/OBJLoader.js";
-import { MTLLoader } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/MTLLoader.js";
+import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+import { OrbitControls } from "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js";
+import { MTLLoader } from "https://unpkg.com/three@0.160.0/examples/jsm/loaders/MTLLoader.js";
+import { OBJLoader } from "https://unpkg.com/three@0.160.0/examples/jsm/loaders/OBJLoader.js";
 
-// Basic setup
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
+let scene, camera, renderer, controls;
+let clock = new THREE.Clock();
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
-camera.position.set(0, 5, 10);
+init();
+animate();
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-document.body.appendChild(renderer.domElement);
+function init() {
+  // Scene
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x202020);
 
-// Lighting
-const sun = new THREE.DirectionalLight(0xffffff, 2);
-sun.position.set(100, 200, 100);
-sun.castShadow = true;
-scene.add(sun);
+  // Camera
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 3, 10);
 
-const ambient = new THREE.AmbientLight(0xffffff, 0.6);
-scene.add(ambient);
+  // Renderer
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
 
-// Ground plane for safety
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(1000, 1000),
-  new THREE.MeshStandardMaterial({ color: 0x228b22 })
-);
-ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
-scene.add(ground);
+  // Lights
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+  hemiLight.position.set(0, 20, 0);
+  scene.add(hemiLight);
 
-// Player setup
-const player = new THREE.Object3D();
-player.position.set(0, 5, 0);
-scene.add(player);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  dirLight.position.set(-3, 10, -10);
+  scene.add(dirLight);
 
-// Camera controls
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 5, 0);
-controls.enablePan = false;
-controls.enableZoom = true;
+  // Controls
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.enablePan = false;
+  controls.enableZoom = true;
 
-// Pause menu system
-const pauseMenu = document.getElementById("pauseMenu");
-const resumeBtn = document.getElementById("resumeBtn");
-const quitBtn = document.getElementById("quitBtn");
+  // === Load OBJ + MTL world ===
+  const mtlLoader = new MTLLoader();
+  mtlLoader.setPath("./Resources/world_save/mortal_realm/");
+  mtlLoader.setResourcePath("./Resources/world_save/mortal_realm/tex/");
 
-let paused = false;
-let escHeld = false;
+  mtlLoader.load("a.mtl", (materials) => {
+    materials.preload();
 
-resumeBtn.addEventListener("click", () => togglePause(false));
-quitBtn.addEventListener("click", () => {
-  alert("Thanks for playing!");
-  togglePause(false);
-});
+    const objLoader = new OBJLoader();
+    objLoader.setMaterials(materials);
+    objLoader.setPath("./Resources/world_save/mortal_realm/");
 
-function togglePause(state) {
-  paused = state;
-  pauseMenu.classList.toggle("active", state);
-  if (state) {
-    document.exitPointerLock();
-  } else {
-    document.body.requestPointerLock();
-  }
+    objLoader.load(
+      "a.obj",
+      (object) => {
+        object.scale.set(1, 1, 1);
+        scene.add(object);
+        console.log("World loaded successfully!");
+      },
+      undefined,
+      (error) => {
+        console.error("Error loading OBJ world:", error);
+      }
+    );
+  });
+
+  // Resize handler
+  window.addEventListener("resize", onWindowResize);
+
+  // Pause overlay
+  const overlay = document.getElementById("overlay");
+  let escHeld = false;
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      escHeld = true;
+      overlay.style.display = "block";
+      document.exitPointerLock();
+    }
+  });
+
+  document.addEventListener("keyup", (e) => {
+    if (e.key === "Escape") {
+      escHeld = false;
+      overlay.style.display = "none";
+      renderer.domElement.requestPointerLock();
+    }
+  });
 }
 
-document.addEventListener("keydown", (e) => {
-  if (e.code === "Escape") escHeld = true;
-});
-document.addEventListener("keyup", (e) => {
-  if (e.code === "Escape") {
-    escHeld = false;
-    togglePause(!paused);
-  }
-});
-
-// Load world
-const mtlLoader = new MTLLoader();
-mtlLoader.setPath("Resources/world_save/mortal_realm/");
-mtlLoader.load("a.mtl", (materials) => {
-  materials.preload();
-
-  const objLoader = new OBJLoader();
-  objLoader.setMaterials(materials);
-  objLoader.setPath("Resources/world_save/mortal_realm/");
-  objLoader.load(
-    "a.obj",
-    (object) => {
-      object.traverse((child) => {
-        if (child.isMesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-          if (child.material.map) {
-            child.material.map.magFilter = THREE.NearestFilter;
-            child.material.map.minFilter = THREE.NearestFilter;
-          }
-        }
-      });
-      object.scale.set(1, 1, 1);
-      object.position.set(0, 0, 0);
-      scene.add(object);
-      console.log("✅ World loaded successfully!");
-
-      const box = new THREE.Box3().setFromObject(object);
-      player.position.y = box.max.y + 2;
-    },
-    (xhr) => console.log(`Loading world: ${((xhr.loaded / xhr.total) * 100).toFixed(1)}%`),
-    (err) => console.error("❌ Failed to load world", err)
-  );
-});
-
-// Dialogue box
-const dialogueBox = document.getElementById("dialogueBox");
-const dialogueText = document.getElementById("dialogueText");
-const dialogueClose = document.getElementById("dialogueClose");
-
-dialogueClose.addEventListener("click", () => {
-  dialogueBox.classList.remove("active");
-  document.body.requestPointerLock();
-});
-
-document.addEventListener("keydown", (e) => {
-  if (e.code === "KeyE") {
-    dialogueBox.classList.add("active");
-    document.exitPointerLock();
-  }
-});
-
-// Handle resizing
-window.addEventListener("resize", () => {
+function onWindowResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-});
+}
 
-// Render loop
 function animate() {
   requestAnimationFrame(animate);
-  if (!paused) {
-    controls.update();
-    renderer.render(scene, camera);
-  }
+  const delta = clock.getDelta();
+  controls.update();
+  renderer.render(scene, camera);
 }
-animate();
-
