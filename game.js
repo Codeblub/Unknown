@@ -10,20 +10,20 @@ init();
 animate();
 
 function init() {
-  // Scene
+  // Scene setup
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x202020);
 
-  // Camera
+  // Camera setup
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
   camera.position.set(0, 3, 10);
 
-  // Renderer
+  // Renderer setup
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   document.body.appendChild(renderer.domElement);
 
-  // Lights
+  // Lighting
   const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
   hemiLight.position.set(0, 20, 0);
   scene.add(hemiLight);
@@ -38,42 +38,63 @@ function init() {
   controls.enablePan = false;
   controls.enableZoom = true;
 
-  // === Load OBJ + MTL world ===
+  // === Load world ===
   const mtlLoader = new MTLLoader();
+  const objLoader = new OBJLoader();
+
   mtlLoader.setPath("./Resources/world_save/mortal_realm/");
   mtlLoader.setResourcePath("./Resources/world_save/mortal_realm/tex/");
 
-  mtlLoader.load("a.mtl", (materials) => {
-    materials.preload();
+  const loadingScreen = document.getElementById("loadingScreen");
+  const progressBar = document.getElementById("progressBar");
+  const loadingText = document.getElementById("loadingText");
 
-    const objLoader = new OBJLoader();
-    objLoader.setMaterials(materials);
-    objLoader.setPath("./Resources/world_save/mortal_realm/");
+  mtlLoader.load(
+    "a.mtl",
+    (materials) => {
+      materials.preload();
+      objLoader.setMaterials(materials);
+      objLoader.setPath("./Resources/world_save/mortal_realm/");
 
-    objLoader.load(
-      "a.obj",
-      (object) => {
-        object.scale.set(1, 1, 1);
-        scene.add(object);
-        console.log("World loaded successfully!");
-      },
-      undefined,
-      (error) => {
-        console.error("Error loading OBJ world:", error);
-      }
-    );
-  });
+      const manager = new THREE.LoadingManager();
+      manager.onProgress = (item, loaded, total) => {
+        const percent = (loaded / total) * 100;
+        progressBar.style.width = `${percent}%`;
+        loadingText.textContent = `Loading ${Math.round(percent)}%`;
+      };
 
-  // Resize handler
+      objLoader.manager = manager;
+
+      objLoader.load(
+        "a.obj",
+        (object) => {
+          object.scale.set(1, 1, 1);
+          scene.add(object);
+          console.log("World loaded!");
+          loadingScreen.style.display = "none";
+        },
+        (xhr) => {
+          const percent = (xhr.loaded / xhr.total) * 100;
+          progressBar.style.width = `${percent}%`;
+        },
+        (error) => {
+          console.error("Error loading OBJ world:", error);
+        }
+      );
+    },
+    undefined,
+    (error) => {
+      console.error("Error loading MTL:", error);
+    }
+  );
+
+  // Window resize
   window.addEventListener("resize", onWindowResize);
 
-  // Pause overlay
+  // Pause overlay logic
   const overlay = document.getElementById("overlay");
-  let escHeld = false;
-
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
-      escHeld = true;
       overlay.style.display = "block";
       document.exitPointerLock();
     }
@@ -81,7 +102,6 @@ function init() {
 
   document.addEventListener("keyup", (e) => {
     if (e.key === "Escape") {
-      escHeld = false;
       overlay.style.display = "none";
       renderer.domElement.requestPointerLock();
     }
@@ -96,7 +116,6 @@ function onWindowResize() {
 
 function animate() {
   requestAnimationFrame(animate);
-  const delta = clock.getDelta();
   controls.update();
   renderer.render(scene, camera);
 }
