@@ -3,137 +3,60 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Unknown</title>
-  <link rel="icon" type="image/x-icon" href="Unkown.ico" />
-
+  <title>Unknown.</title>
+  <link rel="icon" href="Unknown.ico" type="image/x-icon" />
   <style>
-    html, body {
+    body {
       margin: 0;
-      padding: 0;
       overflow: hidden;
-      background: #0b0e13;
-      height: 100%;
-      width: 100%;
-      color: #e5e7eb;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial;
+      background-color: black;
+      font-family: monospace;
+      color: white;
     }
 
     canvas {
       display: block;
-      width: 100%;
-      height: 100%;
+    }
+
+    /* Pause menu styles */
+    #pauseMenu {
       position: absolute;
       top: 0;
       left: 0;
-      z-index: 0;
-    }
-
-    /* Pause Menu */
-    #pauseMenu {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(15, 17, 26, 0.9);
-      border: 1px solid #374151;
-      border-radius: 12px;
-      padding: 30px 50px;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.75);
       display: none;
-      text-align: center;
-      z-index: 10;
-    }
-
-    #pauseMenu h2 {
-      margin-bottom: 15px;
-      color: #e5e7eb;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      z-index: 100;
     }
 
     #pauseMenu button {
-      margin: 8px;
-      padding: 10px 20px;
-      background: #111827;
-      border: 1px solid #374151;
-      color: #e5e7eb;
-      border-radius: 8px;
+      background: #111;
+      color: white;
+      border: 2px solid white;
+      padding: 10px 30px;
+      margin: 10px;
+      font-size: 1.2em;
       cursor: pointer;
-      font-size: 15px;
+      border-radius: 8px;
+      transition: all 0.2s ease;
     }
 
     #pauseMenu button:hover {
-      background: #1f2937;
+      background: white;
+      color: black;
     }
-
-    /* Interaction Prompt */
-    #interactionPrompt {
-      position: absolute;
-      bottom: 15%;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,0.5);
-      padding: 10px 20px;
-      border-radius: 10px;
-      font-size: 18px;
-      display: none;
-      z-index: 5;
-    }
-
-    /* Debug Info */
-    #debug {
-      position: absolute;
-      bottom: 10px;
-      left: 10px;
-      background: rgba(0,0,0,0.35);
-      padding: 6px 8px;
-      border-radius: 8px;
-      font-size: 12px;
-      white-space: pre;
-      pointer-events: none;
-      z-index: 5;
-    }
-
-    .crosshair {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      width: 16px;
-      height: 16px;
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-      z-index: 5;
-    }
-
-    .crosshair::before, .crosshair::after {
-      content: "";
-      position: absolute;
-      background: #e5e7eb;
-    }
-
-    .crosshair::before { left: 7px; top: 0; width: 2px; height: 16px; }
-    .crosshair::after  { top: 7px; left: 0; width: 16px; height: 2px; }
   </style>
 </head>
-
 <body>
-  <canvas id="gameCanvas"></canvas>
-  <div class="crosshair"></div>
-
   <div id="pauseMenu">
-    <h2>Game Paused</h2>
+    <h1>Game Paused</h1>
     <button id="resumeBtn">Resume</button>
-    <button id="quitBtn">Quit</button>
   </div>
 
-  <div id="interactionPrompt">Press E to Interact</div>
-  <div id="debug"></div>
-
-  <!-- Three.js and Addons -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.164.1/examples/js/controls/PointerLockControls.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.164.1/examples/js/loaders/OBJLoader.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.164.1/examples/js/loaders/MTLLoader.js"></script>
-
-  <!-- Main Game -->
   <script type="module" src="game.js"></script>
 </body>
 </html>
-
