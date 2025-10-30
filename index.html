@@ -1,73 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Unknown</title>
-    <link rel="icon" type="image/x-icon" href="Unkown.ico" />
-    <style>
-      body {
-        margin: 0;
-        overflow: hidden;
-        background-color: black;
-        color: white;
-        font-family: monospace;
-      }
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Unknown</title>
+  <link rel="icon" type="image/x-icon" href="./Unkown.ico" />
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: black;
+      font-family: monospace;
+      color: white;
+    }
 
-      #loadingScreen {
-        position: fixed;
-        inset: 0;
-        background: black;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-direction: column;
-        z-index: 10;
-      }
+    #loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 24px;
+      color: white;
+      z-index: 10;
+    }
 
-      #pauseMenu {
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.8);
-        display: none;
-        align-items: center;
-        justify-content: center;
-        flex-direction: column;
-        z-index: 20;
-      }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">Loading world...</div>
 
-      #pauseMenu button {
-        background: #222;
-        color: white;
-        border: 2px solid #555;
-        padding: 12px 30px;
-        margin: 10px;
-        cursor: pointer;
-        font-family: monospace;
-        font-size: 16px;
-        border-radius: 10px;
-      }
-
-      #pauseMenu button:hover {
-        background: #333;
-      }
-
-      canvas {
-        display: block;
-      }
-    </style>
-  </head>
-
-  <body>
-    <div id="loadingScreen">
-      <h1>Loading World...</h1>
-    </div>
-
-    <div id="pauseMenu">
-      <h2>Game Paused</h2>
-      <button id="resumeBtn">Resume</button>
-    </div>
-
-    <script type="module" src="game.js"></script>
-  </body>
+  <script type="module" src="./game.js"></script>
+</body>
 </html>
