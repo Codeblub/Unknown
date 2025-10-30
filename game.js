@@ -1,80 +1,73 @@
-import * as THREE from './libs/three.module.js';
-import { OrbitControls } from './libs/OrbitControls.js';
-import { MTLLoader } from './libs/MTLLoader.js';
-import { OBJLoader } from './libs/OBJLoader.js';
+// Import local Three.js and loaders
+import * as THREE from './Resources/libs/three.min.js';
+import { MTLLoader } from './Resources/libs/MTLLoader.js';
+import { OBJLoader } from './Resources/libs/OBJLoader.js';
+import { OrbitControls } from './Resources/libs/OrbitControls.js';
 
 let scene, camera, renderer, controls;
-let loadingText = document.getElementById('loading');
+const loadingText = document.getElementById('loading');
 
 init();
-loadWorld();
 
 function init() {
   scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.set(0, 20, 30);
+  scene.background = new THREE.Color(0x000000);
+
+  camera = new THREE.PerspectiveCamera(
+    75,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    1000
+  );
+  camera.position.set(0, 5, 10);
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   document.body.appendChild(renderer.domElement);
 
+  // Ambient + directional lighting
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+  scene.add(ambientLight);
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+  dirLight.position.set(10, 10, 10);
+  scene.add(dirLight);
+
+  // Controls
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.enablePan = false;
-  controls.minDistance = 5;
-  controls.maxDistance = 100;
+  controls.dampingFactor = 0.05;
 
-  const ambient = new THREE.AmbientLight(0xffffff, 0.6);
-  scene.add(ambient);
-  const directional = new THREE.DirectionalLight(0xffffff, 0.8);
-  directional.position.set(30, 100, 30);
-  scene.add(directional);
-
-  window.addEventListener('resize', onWindowResize);
-  animate();
-}
-
-function loadWorld() {
-  const worldPath = 'Resources/world_save/mortal_realm/';
+  // Load OBJ + MTL
   const mtlLoader = new MTLLoader();
-  mtlLoader.setPath(worldPath);
-  mtlLoader.load('a.mtl', materials => {
+  mtlLoader.setPath('./Resources/world_save/mortal_realm/');
+  mtlLoader.load('a.mtl', (materials) => {
     materials.preload();
 
     const objLoader = new OBJLoader();
     objLoader.setMaterials(materials);
-    objLoader.setPath(worldPath);
+    objLoader.setPath('./Resources/world_save/mortal_realm/');
     objLoader.load(
       'a.obj',
-      obj => {
-        obj.scale.set(1, 1, 1);
-        obj.position.set(0, 0, 0);
-        scene.add(obj);
+      (object) => {
+        scene.add(object);
         loadingText.style.display = 'none';
-        console.log('World successfully loaded!');
       },
-      xhr => {
-        if (xhr.total) {
-          const percent = (xhr.loaded / xhr.total) * 100;
-          loadingText.textContent = `Loading world... ${percent.toFixed(1)}%`;
-        }
+      (xhr) => {
+        loadingText.textContent = `Loading world... ${(
+          (xhr.loaded / xhr.total) *
+          100
+        ).toFixed(1)}%`;
       },
-      error => {
-        console.error('Failed to load OBJ:', error);
+      (error) => {
         loadingText.textContent = 'Error loading world.';
+        console.error('Error loading OBJ:', error);
       }
     );
-  },
-  error => {
-    console.error('Failed to load MTL:', error);
-    loadingText.textContent = 'Error loading materials.';
   });
-}
 
-function animate() {
-  requestAnimationFrame(animate);
-  controls.update();
-  renderer.render(scene, camera);
+  window.addEventListener('resize', onWindowResize);
+  animate();
 }
 
 function onWindowResize() {
@@ -83,3 +76,8 @@ function onWindowResize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
