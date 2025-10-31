@@ -1,5 +1,5 @@
 // Import local Three.js and loaders
-import * as THREE from './Resources/libs/three.min.js';
+import * as THREE from './Resources/libs/three.module.js';
 import { MTLLoader } from './Resources/libs/MTLLoader.js';
 import { OBJLoader } from './Resources/libs/OBJLoader.js';
 import { OrbitControls } from './Resources/libs/OrbitControls.js';
