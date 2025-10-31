@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Unknown</title>
-  <link rel="icon" href="Unkown.ico" type="image/x-icon" />
+  <link rel="icon" type="image/x-icon" href="Unknown.ico">
   <style>
     body {
       margin: 0;
@@ -13,43 +13,83 @@
       color: white;
       font-family: monospace;
     }
-
     #loading {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      font-size: 20px;
+      font-size: 1.5em;
       color: white;
-    }
-
-    #pauseMenu {
-      display: none;
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.8);
-      color: white;
-      text-align: center;
-      padding-top: 20%;
-      font-size: 24px;
     }
   </style>
 </head>
 <body>
   <div id="loading">Loading world...</div>
-  <div id="pauseMenu">Paused<br><small>Hold ESC to unpause</small></div>
+  <canvas id="gameCanvas"></canvas>
 
-  <!-- ✅ ES module imports (use local files) -->
   <script type="module">
-    import * as THREE from "./Resources/libs/three.module.js";
-    import { OrbitControls } from "./Resources/libs/OrbitControls.js";
-    import { MTLLoader } from "./Resources/libs/MTLLoader.js";
-    import { OBJLoader } from "./Resources/libs/OBJLoader.js";
+    import * as THREE from './Resources/libs/three.module.js';
+    import { OrbitControls } from './Resources/libs/OrbitControls.js';
+    import { MTLLoader } from './Resources/libs/MTLLoader.js';
+    import { OBJLoader } from './Resources/libs/OBJLoader.js';
 
-    import "./game.js";
+    const loadingScreen = document.getElementById("loading");
+    const canvas = document.getElementById("gameCanvas");
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ canvas });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(10, 10, 10);
+    scene.add(light);
+    scene.add(new THREE.AmbientLight(0x404040));
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    camera.position.set(0, 20, 50);
+    controls.update();
+
+    // --- Load Model ---
+    const mtlLoader = new MTLLoader();
+    mtlLoader.setPath('./Resources/world_save/mortal_realm/');
+    mtlLoader.load('a.mtl', (materials) => {
+      materials.preload();
+      const objLoader = new OBJLoader();
+      objLoader.setMaterials(materials);
+      objLoader.setPath('./Resources/world_save/mortal_realm/');
+      objLoader.load(
+        'a.obj',
+        (object) => {
+          scene.add(object);
+          loadingScreen.style.display = "none";
+          console.log("World loaded successfully!");
+        },
+        (xhr) => {
+          const percent = (xhr.loaded / xhr.total) * 100;
+          loadingScreen.innerText = `Loading world... ${percent.toFixed(1)}%`;
+        },
+        (error) => {
+          console.error("Error loading OBJ:", error);
+          loadingScreen.innerText = "Failed to load world.";
+        }
+      );
+    });
+
+    // --- Render loop ---
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
   </script>
 </body>
 </html>
