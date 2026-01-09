@@ -1,201 +1,61 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Unknown</title>
-  <link rel="icon" href="Unkown.ico" type="image/x-icon">
-  <style>
-    body { margin: 0; overflow: hidden; background: black; }
-    #loading {
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      color: white;
-      font-family: monospace;
-      font-size: 20px;
+<html>
+    <head><title>Statistics Canada</title></head>
+<style>
+    body {
+background: white;
     }
-    #ui {
-      position: fixed;
-      top: 10px; left: 10px;
-      color: white;
-      font-family: monospace;
-      font-size: 14px;
-      z-index: 10;
-      pointer-events: none;
+    button {
+        background: red;
     }
-    .crosshair {
-      position: fixed;
-      top: 50%; left: 50%;
-      width: 16px; height: 16px;
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-      z-index: 5;
-    }
-    .crosshair::before, .crosshair::after {
-      content: "";
-      position: absolute;
-      background: white;
-    }
-    .crosshair::before {
-      left: 7px; top: 0;
-      width: 2px; height: 16px;
-    }
-    .crosshair::after {
-      top: 7px; left: 0;
-      width: 16px; height: 2px;
-    }
-  </style>
-</head>
-<body>
-  <div id="loading">Loading world...</div>
-  <div id="ui">WASD to move · Mouse to look · Space to jump · Shift to sprint · Esc to unlock</div>
-  <div class="crosshair"></div>
+</style>
+<h1><b><img src="canada.png" width="150" height="150">
+Statistics Canada — Survey on Modern Labour and Digital Integration (Mock)<br>
+Below is a mock survey designed in the style of a Statistics Canada questionnaire, followed by a visualization of the data for the central question.<br>
+<br></h1></b>
+<div style="width: 50%; margin: auto; border: 5px solid grey;background: grey;"><h3>Step B — Employment and Remote Work<br>
+Q1: In the last month, what was this person's primary employment status?<br>
+ Employed full-time (30 hours or more per week)<br>
+ Employed part-time (less than 30 hours per week)<br>
+ Self-employed<br>
+ Unemployed (looking for work)<br>
+ Not in the labour force (Student, retired, or other)<br>
+Q2: In the last four weeks, how often did this person work from home?<br>
+Include: Any work performed for an employer or business from a private residence.<br>
+Exclude: Commuting to a satellite office or coworking space.<br>
+ Every day<br>
+ Most days ($3$ to $4$ days per week)<br>
+ Some days ($1$ to $2$ days per week)<br>
+ Rarely<br>
+ Never<br>
+Q3: Which digital tool did this person use most frequently for work-related communication?<br>
+Video conferencing (e.g., Zoom, Teams)<br>
+ Instant messaging / Chat<br>
+ Email<br>
+ Telephone calls<br>
+Other<br></h3></div>
 
-  <script type="module">
-    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-    import { MTLLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/MTLLoader.js';
-    import { OBJLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/OBJLoader.js';
 
-    /* ====== Scene + Renderer ====== */
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
-    camera.rotation.order = "YXZ";
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    document.body.appendChild(renderer.domElement);
 
-    /* ====== Lighting ====== */
-    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-    sun.position.set(200, 300, 150);
-    scene.add(sun);
 
-    /* ====== Ground plane (optional water/grass) ====== */
-    const groundGeo = new THREE.PlaneGeometry(1000, 1000);
-    const groundMat = new THREE.MeshPhongMaterial({ color: 0x228B22 });
-    const ground = new THREE.Mesh(groundGeo, groundMat);
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -1;
-    scene.add(ground);
 
-    /* ====== Load OBJ/MTL world ====== */
-    const mtlLoader = new MTLLoader();
-    mtlLoader.setResourcePath('Resources/world_save/mortal_realm/tex/');
-    mtlLoader.load('Resources/world_save/mortal_realm/a.mtl', (materials) => {
-      materials.preload();
 
-      const objLoader = new OBJLoader();
-      objLoader.setMaterials(materials);
-      objLoader.load(
-        'Resources/world_save/mortal_realm/a.obj',
-        (object) => {
-          object.scale.set(0.1, 0.1, 0.1);
-          scene.add(object);
-          document.getElementById('loading').style.display = 'none';
-        },
-        (xhr) => {
-          document.getElementById('loading').textContent =
-            `Loading world... ${Math.round((xhr.loaded / xhr.total) * 100)}%`;
-        },
-        (err) => {
-          console.error('Error loading OBJ:', err);
-          document.getElementById('loading').textContent = 'Error loading world!';
-        }
-      );
-    });
 
-    /* ====== Player Controls ====== */
-    const player = new THREE.Object3D();
-    player.position.set(0, 2, 0);
-    scene.add(player);
-    player.add(camera);
 
-    const velocity = new THREE.Vector3();
-    const direction = new THREE.Vector3();
-    const speed = 10;
-    const sprintMult = 1.7;
-    const gravity = 30;
-    const jumpSpeed = 10;
-    let vy = 0, onGround = true;
 
-    const keys = new Set();
 
-    window.addEventListener('keydown', e => keys.add(e.key.toLowerCase()));
-    window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
 
-    // Pointer lock setup
-    renderer.domElement.addEventListener('click', () => {
-      renderer.domElement.requestPointerLock();
-    });
 
-    let pointerLocked = false;
-    document.addEventListener('pointerlockchange', () => {
-      pointerLocked = document.pointerLockElement === renderer.domElement;
-    });
 
-    document.addEventListener('mousemove', e => {
-      if (!pointerLocked) return;
-      const sensitivity = 0.002;
-      player.rotation.y -= e.movementX * sensitivity;
-      camera.rotation.x -= e.movementY * sensitivity;
-      camera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.rotation.x));
-    });
 
-    /* ====== Movement update ====== */
-    const clock = new THREE.Clock();
 
-    function updateMovement(dt) {
-      const forward = (keys.has('w')) - (keys.has('s'));
-      const strafe = (keys.has('d')) - (keys.has('a'));
 
-      direction.set(strafe, 0, forward).normalize();
 
-      if (direction.lengthSq() > 0) {
-        const angle = player.rotation.y;
-        const sin = Math.sin(angle), cos = Math.cos(angle);
-        const moveX = direction.x * cos - direction.z * sin;
-        const moveZ = direction.x * sin + direction.z * cos;
 
-        const currentSpeed = speed * (keys.has('shift') ? sprintMult : 1);
-        player.position.x += moveX * currentSpeed * dt;
-        player.position.z += moveZ * currentSpeed * dt;
-      }
 
-      // Gravity + jump
-      vy -= gravity * dt;
-      if (onGround && (keys.has(' ') || keys.has('space'))) {
-        vy = jumpSpeed;
-        onGround = false;
-      }
-      player.position.y += vy * dt;
 
-      if (player.position.y <= 2) {
-        player.position.y = 2;
-        vy = 0;
-        onGround = true;
-      }
-    }
 
-    /* ====== Resize ====== */
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
 
-    /* ====== Main loop ====== */
-    function tick() {
-      const dt = Math.min(0.05, clock.getDelta());
-      updateMovement(dt);
-      sun.position.set(player.position.x + 200, 300, player.position.z + 150);
-      renderer.render(scene, camera);
-      requestAnimationFrame(tick);
-    }
 
-    tick();
-    console.log('World loaded: WASD to move, mouse to look, space to jump.');
-  </script>
-</body>
-</html>
+<img src=logo.png width="350" height="150">
+    </html>
