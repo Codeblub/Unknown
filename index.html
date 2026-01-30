@@ -1,61 +1,33 @@
 <html>
-    <head><title>Statistics Canada</title></head>
-<style>
-    body {
-background: white;
-    }
-    button {
-        background: red;
-    }
-</style>
-<h1><b><img src="canada.png" width="150" height="150">
-Statistics Canada — Survey on Modern Labour and Digital Integration (Mock)<br>
-Below is a mock survey designed in the style of a Statistics Canada questionnaire, followed by a visualization of the data for the central question.<br>
-<br></h1></b>
-<div style="width: 50%; margin: auto; border: 5px solid grey;background: grey;"><h3>Step B — Employment and Remote Work<br>
-Q1: In the last month, what was this person's primary employment status?<br>
- Employed full-time (30 hours or more per week)<br>
- Employed part-time (less than 30 hours per week)<br>
- Self-employed<br>
- Unemployed (looking for work)<br>
- Not in the labour force (Student, retired, or other)<br>
-Q2: In the last four weeks, how often did this person work from home?<br>
-Include: Any work performed for an employer or business from a private residence.<br>
-Exclude: Commuting to a satellite office or coworking space.<br>
- Every day<br>
- Most days ($3$ to $4$ days per week)<br>
- Some days ($1$ to $2$ days per week)<br>
- Rarely<br>
- Never<br>
-Q3: Which digital tool did this person use most frequently for work-related communication?<br>
-Video conferencing (e.g., Zoom, Teams)<br>
- Instant messaging / Chat<br>
- Email<br>
- Telephone calls<br>
-Other<br></h3></div>
+<head><title>Cloud storage</title></head>
+    <style>
+        body {
+            background: grey;
+            )
+    </style>
+    <body>
+        <script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-analytics.js";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
 
+  // Your web app's Firebase configuration
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+  const firebaseConfig = {
+    apiKey: "AIzaSyAiiLxehiCsr5D8QE3Q8P4Mx-hqiCY3KbU",
+    authDomain: "socichat-c780d.firebaseapp.com",
+    projectId: "socichat-c780d",
+    storageBucket: "socichat-c780d.firebasestorage.app",
+    messagingSenderId: "786977154108",
+    appId: "1:786977154108:web:f2964825d559dbe6eb0f39",
+    measurementId: "G-DW758E51E7"
+  };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<img src=logo.png width="350" height="150">
-    </html>
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+</script>
+    </body>
+</html>
