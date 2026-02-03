@@ -1,33 +1,121 @@
-<html>
-<head><title>Cloud storage</title></head>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Mini Paper.io Clone</title>
     <style>
-        body {
-            background: grey;
-            )
+        body { margin: 0; overflow: hidden; background: #222; font-family: sans-serif; }
+        canvas { display: block; background: #fff; margin: 20px auto; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        #ui { position: absolute; top: 30px; left: 30px; color: white; pointer-events: none; }
     </style>
-    <body>
-        <script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-analytics.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
+</head>
+<body>
+    <div id="ui">
+        <h1>Paper.io Mini</h1>
+        <p>Use <b>Arrow Keys</b> to move.<br>Capture space by returning to your color!</p>
+    </div>
+    <canvas id="gameCanvas"></canvas>
 
-  // Your web app's Firebase configuration
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-  const firebaseConfig = {
-    apiKey: "AIzaSyAiiLxehiCsr5D8QE3Q8P4Mx-hqiCY3KbU",
-    authDomain: "socichat-c780d.firebaseapp.com",
-    projectId: "socichat-c780d",
-    storageBucket: "socichat-c780d.firebasestorage.app",
-    messagingSenderId: "786977154108",
-    appId: "1:786977154108:web:f2964825d559dbe6eb0f39",
-    measurementId: "G-DW758E51E7"
-  };
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
 
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-</script>
-    </body>
+        // Configuration
+        const gridSize = 60; 
+        const tileSize = 10;
+        canvas.width = gridSize * tileSize;
+        canvas.height = gridSize * tileSize;
+
+        const EMPTY = 0;
+        const PLAYER_TERRITORY = 1;
+        const PLAYER_TRAIL = 2;
+
+        let grid = Array(gridSize).fill().map(() => Array(gridSize).fill(EMPTY));
+        let player = { x: 5, y: 5, dx: 1, dy: 0, nextDir: [1, 0] };
+
+        // Initialize starting territory
+        for(let i=3; i<8; i++) {
+            for(let j=3; j<8; j++) grid[i][j] = PLAYER_TERRITORY;
+        }
+
+        // Input handling
+        window.addEventListener('keydown', e => {
+            if (e.key === 'ArrowUp' && player.dy === 0) player.nextDir = [0, -1];
+            if (e.key === 'ArrowDown' && player.dy === 0) player.nextDir = [0, 1];
+            if (e.key === 'ArrowLeft' && player.dx === 0) player.nextDir = [-1, 0];
+            if (e.key === 'ArrowRight' && player.dx === 0) player.nextDir = [1, 0];
+        });
+
+        function update() {
+            player.dx = player.nextDir[0];
+            player.dy = player.nextDir[1];
+            
+            player.x += player.dx;
+            player.y += player.dy;
+
+            // Bounds check
+            if (player.x < 0 || player.x >= gridSize || player.y < 0 || player.y >= gridSize) {
+                resetGame();
+                return;
+            }
+
+            let currentTile = grid[player.x][player.y];
+
+            if (currentTile === PLAYER_TRAIL) {
+                resetGame(); // Hit own trail
+            } else if (currentTile === EMPTY) {
+                grid[player.x][player.y] = PLAYER_TRAIL;
+            } else if (currentTile === PLAYER_TERRITORY) {
+                captureTerritory();
+            }
+        }
+
+        function captureTerritory() {
+            // Convert all trail to territory
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    if (grid[i][j] === PLAYER_TRAIL) grid[i][j] = PLAYER_TERRITORY;
+                }
+            }
+            // Simple logic: Any empty block surrounded by territory should fill.
+            // (Note: A full flood fill algorithm would be implemented here for a complete game)
+        }
+
+        function resetGame() {
+            grid = Array(gridSize).fill().map(() => Array(gridSize).fill(EMPTY));
+            player = { x: 5, y: 5, dx: 1, dy: 0, nextDir: [1, 0] };
+            for(let i=3; i<8; i++) {
+                for(let j=3; j<8; j++) grid[i][j] = PLAYER_TERRITORY;
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    if (grid[i][j] === PLAYER_TERRITORY) {
+                        ctx.fillStyle = '#4CAF50';
+                        ctx.fillRect(i * tileSize, j * tileSize, tileSize, tileSize);
+                    } else if (grid[i][j] === PLAYER_TRAIL) {
+                        ctx.fillStyle = '#81C784';
+                        ctx.fillRect(i * tileSize, j * tileSize, tileSize, tileSize);
+                    }
+                }
+            }
+
+            // Draw player head
+            ctx.fillStyle = '#2E7D32';
+            ctx.fillRect(player.x * tileSize, player.y * tileSize, tileSize, tileSize);
+        }
+
+        function loop() {
+            update();
+            draw();
+            setTimeout(loop, 100); // Game speed
+        }
+
+        loop();
+    </script>
+</body>
 </html>
