@@ -1,157 +1,40 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>CODM Web Prototype</title>
-    <style>
-        body { margin: 0; background-color: #000; overflow: hidden; font-family: sans-serif; }
-        #crosshair {
-            position: absolute; top: 50%; left: 50%;
-            width: 12px; height: 12px;
-            border: 2px solid rgba(255, 255, 255, 0.8);
-            border-radius: 50%; transform: translate(-50%, -50%);
-            pointer-events: none; z-index: 10;
-        }
-        #ui {
-            position: absolute; bottom: 20px; left: 20px;
-            color: white; text-shadow: 2px 2px 2px black;
-            z-index: 10; pointer-events: none;
-        }
-        #instructions {
-            position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            color: white; background: rgba(0,0,0,0.8);
-            padding: 20px; text-align: center; cursor: pointer;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>Basket Random</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+
+<meta name="generator" content="Construct 3">
+
+	<link rel="manifest" href="appmanifest.json">
+
+
+<link rel="stylesheet" href="style.css">
+
+<script>
+window.addEventListener("keydown", function(e) {
+    // space and arrow keys
+    if([32, 37, 38, 39, 40].indexOf(e.keyCode) > -1) {
+        e.preventDefault();
+    }
+}, false);
+</script>
+
 </head>
 <body>
-
-    <div id="crosshair"></div>
-    <div id="ui">HP: 100 | AMMO: 30</div>
-    <div id="instructions">
-        <h1>CLICK TO START GAME</h1>
-        <p>(W,A,S,D to Walk | MOUSE to Look | CLICK to Shoot)</p>
-    </div>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
-    <script>
-        // 1. SCENE SETUP
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87ceeb); // Sky Blue
-        
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(renderer.domElement);
-
-        // 2. LIGHTING (Crucial so it's not black!)
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        scene.add(ambientLight);
-
-        const sunLight = new THREE.DirectionalLight(0xffffff, 1);
-        sunLight.position.set(5, 10, 7.5);
-        scene.add(sunLight);
-
-        // 3. THE MAP (Floor and some Boxes for cover)
-        const grid = new THREE.GridHelper(100, 20, 0x000000, 0x000000);
-        scene.add(grid);
-
-        const floorGeo = new THREE.PlaneGeometry(100, 100);
-        const floorMat = new THREE.MeshPhongMaterial({ color: 0x444444 });
-        const floor = new THREE.Mesh(floorGeo, floorMat);
-        floor.rotation.x = -Math.PI / 2;
-        scene.add(floor);
-
-        // Add a few "Enemy" targets (Red boxes)
-        for(let i=0; i<5; i++) {
-            const box = new THREE.Mesh(
-                new THREE.BoxGeometry(2, 2, 2),
-                new THREE.MeshPhongMaterial({ color: 0xff0000 })
-            );
-            box.position.set(Math.random()*20-10, 1, Math.random()*20-10);
-            scene.add(box);
-        }
-
-        // 4. PLAYER & GUN
-        camera.position.y = 1.6; // Human height
-
-        const gun = new THREE.Mesh(
-            new THREE.BoxGeometry(0.1, 0.1, 0.5),
-            new THREE.MeshPhongMaterial({ color: 0x111111 })
-        );
-        gun.position.set(0.3, -0.3, -0.5);
-        camera.add(gun);
-        scene.add(camera);
-
-        // 5. CONTROLS
-        let moveFwd = false, moveBwd = false, moveL = false, moveR = false;
-        let yaw = 0, pitch = 0;
-
-        const instructions = document.getElementById('instructions');
-        
-        instructions.addEventListener('click', () => {
-            document.body.requestPointerLock();
-        });
-
-        document.addEventListener('pointerlockchange', () => {
-            instructions.style.display = document.pointerLockElement ? 'none' : 'block';
-        });
-
-        document.addEventListener('mousemove', (e) => {
-            if (document.pointerLockElement) {
-                yaw -= e.movementX * 0.002;
-                pitch -= e.movementY * 0.002;
-                pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
-                
-                camera.rotation.order = "YXZ";
-                camera.rotation.set(pitch, yaw, 0);
-            }
-        });
-
-        document.addEventListener('keydown', (e) => {
-            if(e.code === 'KeyW') moveFwd = true;
-            if(e.code === 'KeyS') moveBwd = true;
-            if(e.code === 'KeyA') moveL = true;
-            if(e.code === 'KeyD') moveR = true;
-        });
-
-        document.addEventListener('keyup', (e) => {
-            if(e.code === 'KeyW') moveFwd = false;
-            if(e.code === 'KeyS') moveBwd = false;
-            if(e.code === 'KeyA') moveL = false;
-            if(e.code === 'KeyD') moveR = false;
-        });
-
-        // 6. GAME LOOP
-        const speed = 0.15;
-        function animate() {
-            requestAnimationFrame(animate);
-
-            if (document.pointerLockElement) {
-                const dir = new THREE.Vector3();
-                camera.getWorldDirection(dir);
-                dir.y = 0; dir.normalize(); // Keep movement on the ground
-
-                const side = new THREE.Vector3().crossVectors(camera.up, dir).normalize();
-
-                if(moveFwd) camera.position.addScaledVector(dir, speed);
-                if(moveBwd) camera.position.addScaledVector(dir, -speed);
-                if(moveL) camera.position.addScaledVector(side, speed);
-                if(moveR) camera.position.addScaledVector(side, -speed);
-            }
-
-            renderer.render(scene, camera);
-        }
-        animate();
-
-        // Resize handler
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-    </script>
+<div id="fb-root"></div>
+	<script src="box2d.wasm.js"></script>
+	<noscript>
+		<div id="notSupportedWrap">
+			<h2 id="notSupportedTitle">This content requires JavaScript</h2>
+			<p class="notSupportedMessage">JavaScript appears to be disabled. Please enable it to view this content.</p>
+			<p class="notSupportedMessage">This game was developed with Construct. <a href="https://www.construct.net/en">Build your own games</a></p>
+		</div>
+	</noscript>
+	<script src="scripts/supportcheck.js"></script>
+	<script src="scripts/offlineclient.js"></script>
+	<script src="scripts/main.js"></script>
+	<script src="scripts/register-sw.js"></script>
 </body>
 </html>
